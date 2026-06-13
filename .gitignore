@@ -311,3 +311,8 @@ build/
 cmake-build*/
 CMakeLists.txt
 sandbox/
+
+# POSIX C89 backend build artifacts
+core/os/posix/src/**/*.o
+core/os/posix/test_*
+core/os/posix/libodin_posix.a
