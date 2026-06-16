@@ -133,13 +133,11 @@ sys_rmdir(char *path)
 int
 sys_rename(char *oldpath, char *newpath)
 {
-	if(oldpath == nil || newpath == nil) {
-		sys_seterr(ERR_IO);
-		return -1;
-	}
-	if(rename(oldpath, newpath) < 0)
-		return sys_seterr_plan9();
-	return 0;
+	/* Plan 9 has no rename(); use wstat-based renames later. */
+	USED(oldpath);
+	USED(newpath);
+	sys_seterr(ERR_IO);
+	return -1;
 }
 
 int
@@ -168,7 +166,10 @@ sys_stat(char *path, Stat *st)
 		return sys_seterr_plan9();
 
 	memset(st, 0, sizeof(*st));
-	st->type = d->mode & S_IFMT;
+	if(d->mode & DMDIR)
+		st->type = ODIN_S_IFDIR;
+	else
+		st->type = ODIN_S_IFREG;
 	st->dev = d->qid.type;
 	st->ino = d->qid.path;
 	st->mode = d->mode;

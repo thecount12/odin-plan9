@@ -41,8 +41,8 @@ Reference for porting `core/os/posix/` to `core/os/plan9/`.
 | `unlink` | `remove()` |
 | `mkdir` | `create(path, OREAD, DMDIR\|perm)` |
 | `rmdir` | `remove()` on empty dir |
-| `rename` | `rename()` |
-| `stat` + `struct stat` | `dirstat()` → `Dir` |
+| `rename` | not in libc — stub for now; use `wstat` later |
+| `stat` + `struct stat` | `dirstat()` → `Dir`; map `DMDIR` not `S_IFMT` |
 
 ## Process
 
@@ -60,7 +60,7 @@ Reference for porting `core/os/posix/` to `core/os/plan9/`.
 | POSIX | Plan 9 |
 |-------|--------|
 | `time(NULL)` | `time(0)` |
-| `select` sleep | `nap(ms)` |
+| `select` sleep | `osmillisecond()` busy-wait loop |
 | `gettimeofday` | coarse: `time(0)` (no sub-second yet) |
 
 ## Threading (not yet ported)

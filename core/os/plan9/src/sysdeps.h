@@ -12,6 +12,12 @@ enum {
     ERR_PERM = 1
 };
 
+/* Odin-compatible file type bits (POSIX-ish; not Plan 9 DMDIR). */
+enum {
+    ODIN_S_IFREG = 0100000,
+    ODIN_S_IFDIR = 0040000
+};
+
 typedef int fd_t;
 #define MAX_FD 64
 

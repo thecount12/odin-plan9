@@ -11,8 +11,13 @@ sys_time(void)
 void
 sys_sleep(int ms)
 {
-	if(ms > 0)
-		nap(ms);
+	ulong stop;
+
+	if(ms <= 0)
+		return;
+	stop = osmillisecond() + (ulong)ms;
+	while(osmillisecond() < stop)
+		;
 }
 
 ulonglong
