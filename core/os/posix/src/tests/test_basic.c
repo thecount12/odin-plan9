@@ -3,7 +3,7 @@
 #include "include/filesys.h"
 #include "include/process.h"
 #include "include/mem.h"
-#include "include/time.h"
+#include "include/sys_time.h"
 
 int main(int argc, char *argv[]) {
     int failed = 0;

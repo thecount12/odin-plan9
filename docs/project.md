@@ -19,8 +19,8 @@ Portable **POSIX C** first, then native **Plan 9 C** (9front amd64, `8c`/`8l`).
 
 ## Porting workflow
 1. Implement and test under `posix/` (see [posix-backend.md](posix-backend.md))
-2. Document deltas in `docs/plan9-delta.md`
-3. Port to `plan9/` with minimal logic changes
+2. Document deltas in [plan9-delta.md](plan9-delta.md)
+3. Port to `core/os/plan9/` with minimal logic changes
 
 When porting, always list API replacements (malloc, open/read/write, paths, errors).
 

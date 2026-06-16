@@ -1,5 +1,5 @@
-#ifndef ODIN_TIME_H
-#define ODIN_TIME_H
+#ifndef SYS_TIME_H
+#define SYS_TIME_H
 
 #include "sysdeps.h"
 #include <time.h>

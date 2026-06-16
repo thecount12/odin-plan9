@@ -1,0 +1,15 @@
+# POSIX-C89 link flags for host programs using libodin_posix.a
+#
+# Usage (from repo root):
+#   cd core/os/posix && make lib
+#   cc -std=gnu89 -pedantic -Wall \
+#      -Icore/os/posix/src/include \
+#      -Isys/src/cmd/odin_runtime \
+#      -o hello examples/hello/hello.o \
+#      sys/src/cmd/odin_runtime/entry.o \
+#      core/os/posix/libodin_posix.a \
+#      -pthread
+
+CFLAGS = -std=gnu89 -pedantic -Wall
+INCLUDES = -Icore/os/posix/src/include -Isys/src/cmd/odin_runtime
+LDFLAGS = -pthread

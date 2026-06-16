@@ -1,0 +1,68 @@
+# Plan 9 mkfile for libodin_plan9.a
+# Run on 9front: cd core/os/plan9 && mk
+
+</$objtype/mkfile
+
+LIB=libodin_plan9.a
+CFLAGS=-I. -I./src
+
+RUNTIME=../../../sys/src/cmd/odin_runtime/plan9
+
+OFILES=\
+	sysdeps.$O\
+	mem.$O\
+	filesys.$O\
+	process.$O\
+	time.$O\
+
+HFILES=\
+	src/include/sysdeps.h\
+	src/include/mem.h\
+	src/include/filesys.h\
+	src/include/process.h\
+	src/include/sys_time.h\
+	$RUNTIME/common.h\
+
+all:V: $LIB test_filesys hello
+
+$LIB: $OFILES
+	ar vu $LIB $OFILES
+
+sysdeps.$O: src/sysdeps.c $HFILES
+	$CC $CFLAGS -o $target src/sysdeps.c
+
+mem.$O: src/mem.c $HFILES
+	$CC $CFLAGS -o $target src/mem.c
+
+filesys.$O: src/filesys.c $HFILES
+	$CC $CFLAGS -o $target src/filesys.c
+
+process.$O: src/process.c $HFILES
+	$CC $CFLAGS -o $target src/process.c
+
+time.$O: src/time.c $HFILES
+	$CC $CFLAGS -o $target src/time.c
+
+test_filesys.$O: src/tests/test_filesys.c $HFILES
+	$CC $CFLAGS -o $target src/tests/test_filesys.c
+
+test_filesys: test_filesys.$O $LIB
+	$LD -o $target test_filesys.$O $LIB
+
+hello.$O: examples/hello/hello.c $HFILES
+	$CC $CFLAGS -I$RUNTIME -o $target examples/hello/hello.c
+
+entry.$O: $RUNTIME/entry.c $HFILES
+	$CC $CFLAGS -I$RUNTIME -I./src -o $target $RUNTIME/entry.c
+
+hello: hello.$O entry.$O $LIB
+	$LD -o $target hello.$O entry.$O $LIB
+
+clean:V:
+	rm -f *.[$OS] [$OS].out $LIB test_filesys hello
+
+install:V: $LIB
+	cp $LIB /$objtype/lib/
+
+.DEFAULT:
+	$CC $CFLAGS -o $O $stem.c

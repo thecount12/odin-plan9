@@ -31,10 +31,10 @@ The backend is **not** a new Odin compiler. It is a thin C89 `sys_*` layer that:
 | dir        | `dir.h`             | opendir, readdir, closedir               | done     |
 | env        | `env.h`             | getenv, setenv, unsetenv                 | done     |
 | process    | `process.h`         | fork, exec, wait, getpid                 | done     |
-| time       | `time.h`            | time, gettimeofday, select               | done     |
-| thread     | `thread.h`          | pthread_create, mutex, cond              | planned  |
-| mmap       | `mmap.h`            | mmap, mprotect, munmap                   | planned  |
-| net        | `net.h`             | socket, connect, bind                    | planned  |
+| time       | `sys_time.h`        | time, gettimeofday, select               | done     |
+| thread     | `thread.h`          | pthread_create, mutex, cond              | done     |
+| mmap       | `mmap.h`            | mmap, mprotect, munmap                   | done     |
+| net        | `net.h`             | socket, bind, connect, send, recv       | done     |
 
 ### Naming conventions
 
@@ -79,27 +79,99 @@ make lib                    # build libodin_posix.a
 - Map to `pthread` with `-pthread` in LDFLAGS
 - Document Plan 9 delta: no pthread on 9front; use `procrfork` / channels instead
 
-### Phase 4 — Virtual memory
+### Phase 4 — Virtual memory (complete)
+
+- `sys_mmap`, `sys_munmap`, `sys_mprotect`
+- Odin `ODIN_MAP_*` / `ODIN_PROT_*` flag mapping (Darwin `MAP_ANON`, Linux `MAP_ANONYMOUS`)
+- Anonymous and file-backed mmap tests
+
+## Plan 9 API replacements (reference)
+
+| POSIX              | Plan 9 / 9front        |
+|--------------------|------------------------|
+| `open/read/write`  | `open/read/write` (different flag bits) |
+| `malloc/free`      | `malloc/free` (often same) |
+| `fork/exec/wait`   | `rfork/exec/wait`      |
+| `opendir/readdir`  | same names, `Dir` struct differs |
+| `getenv`           | `getenv`               |
+| `pthread_*`        | `procrfork`, `lock`, channels |
+| `socket`           | `dial`, `announce`, `/net` |
+| `mmap`             | `/dev/swap`, segment attach |
+
 
 - `sys_mmap`, `sys_munmap`, `sys_mprotect`
 - Needed for Odin heap allocator and `core:mem/virtual`
 
-### Phase 5 — Networking
+### Memory Management Differences
 
-- Socket create/bind/connect/send/recv wrappers
+- **POSIX**: Uses `mmap`, `mprotect`, and `munmap` for memory mapping operations.
+- **Plan 9**: Uses different mechanisms for memory management:
+  - `/dev/swap` for mapping
+  - Segment attachment for protection changes
+  - Detach segments to unmap memory
+
+### Threading Differences
+
+- **POSIX**: Uses pthreads for threading.
+- **Plan 9**: Uses `procrfork()` and channels (`Chan`) for concurrency.
+
+### Error Handling Differences
+
+- **POSIX**: Uses `errno` for error reporting.
+- **Plan 9**: Uses `print`, `fprint(2, ...)`, and other Plan 9-specific error handling methods.
+
+
+### Phase 5 — Networking (complete)
+
+- `sys_socket`, `sys_socketpair`, `sys_bind`, `sys_connect`, `sys_listen`, `sys_accept`
+- `sys_send`, `sys_recv`, `sys_shutdown`
+- `SysSockAddrUn` / `SysSockAddrIn` with Odin address-family mapping
 - Plan 9 delta: `/net` dial/listen instead of BSD sockets
 
-### Phase 6 — Compiler integration
+### Phase 6 — Compiler integration (complete)
 
-- Populate `sys/src/cmd/odin_runtime/common.h` as the umbrella include
-- Link `libodin_posix.a` when targeting a hypothetical `odin build -target=posix-c89`
-- Provide `main` / `_start` glue if compiling without Odin `base:runtime` entry
+- `sys/src/cmd/odin_runtime/common.h` — umbrella include for generated C
+- `sys/src/cmd/odin_runtime/entry.c` — `main()` → `odin_main()` glue
+- `sys/src/cmd/odin_runtime/odin_runtime.h` — contract for generated programs
+- `examples/hello/hello.c` — integration smoke test
+- `make integration` — builds `libodin_posix.a`, links `hello`, verifies end-to-end link
 
-### Phase 7 — Plan 9 port
+#### Linking a generated program
 
-- Copy `core/os/posix/src` → `core/os/plan9/src`
-- Replace POSIX includes per module (document in `docs/plan9-delta.md`)
-- Build with `mk` and `8c`/`8l`
+```bash
+cd core/os/posix
+make integration
+./hello
+# hello from odin posix-c89
+```
+
+Manual link (from repo root):
+
+```bash
+cd core/os/posix && make lib
+cc -std=gnu89 -pedantic -Wall \
+   -Icore/os/posix/src/include \
+   -Isys/src/cmd/odin_runtime \
+   -c core/os/posix/examples/hello/hello.c \
+   -o /tmp/hello.o
+cc -std=gnu89 -pedantic -Wall \
+   -Icore/os/posix/src/include \
+   -Isys/src/cmd/odin_runtime \
+   -c sys/src/cmd/odin_runtime/entry.c \
+   -o /tmp/entry.o
+cc -pthread -o hello /tmp/hello.o /tmp/entry.o core/os/posix/libodin_posix.a
+```
+
+Generated C must define `int odin_main(int argc, char **argv)` and include `"common.h"`.
+
+### Phase 7 — Plan 9 port (in progress)
+
+- `core/os/plan9/` — 9front C runtime (mirrors posix API)
+- `docs/plan9-delta.md` — API replacement table
+- `sys/src/cmd/odin_runtime/plan9/` — entry glue (`exits` not `return`)
+- Build on 9front: `cd core/os/plan9 && mk`
+- **Done:** sysdeps, mem, filesys, process, time, test_filesys, hello
+- **Remaining:** path, dir, env, thread, mmap, net
 
 ## Plan 9 API replacements (reference)
 

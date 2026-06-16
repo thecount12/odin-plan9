@@ -312,7 +312,16 @@ cmake-build*/
 CMakeLists.txt
 sandbox/
 
-# POSIX C89 backend build artifacts
+# Plan 9 / 9front backend build artifacts
+core/os/plan9/*.$O
+core/os/plan9/[$O].out
+core/os/plan9/libodin_plan9.a
+core/os/plan9/test_filesys
+core/os/plan9/hello
+core/os/plan9/entry.$O
 core/os/posix/src/**/*.o
 core/os/posix/test_*
+core/os/posix/hello
+core/os/posix/examples/**/*.o
 core/os/posix/libodin_posix.a
+sys/src/cmd/odin_runtime/entry.o

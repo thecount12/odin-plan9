@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "include/time.h"
+#include "include/sys_time.h"
 
 int main(void) {
     int failed = 0;
