@@ -1,6 +1,6 @@
 #include <u.h>
 #include <libc.h>
-#include "include/sysdeps.h"
+#include "sysdeps.h"
 
 int errno_;
 
@@ -19,7 +19,9 @@ sys_seterr(int err)
 int
 sys_seterr_plan9(void)
 {
-	(void)errstr();
+	char buf[ERRMAX];
+
+	errstr(buf, sizeof buf);
 	errno_ = ERR_IO;
 	return -1;
 }

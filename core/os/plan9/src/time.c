@@ -1,6 +1,6 @@
 #include <u.h>
 #include <libc.h>
-#include "include/sys_time.h"
+#include "sys_time.h"
 
 ulong
 sys_time(void)

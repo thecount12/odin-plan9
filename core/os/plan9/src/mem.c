@@ -1,6 +1,6 @@
 #include <u.h>
 #include <libc.h>
-#include "include/mem.h"
+#include "mem.h"
 
 void *
 sys_malloc(ulong size)

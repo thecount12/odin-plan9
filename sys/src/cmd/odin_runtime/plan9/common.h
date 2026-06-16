@@ -5,10 +5,10 @@
 #ifndef ODIN_RUNTIME_COMMON_H
 #define ODIN_RUNTIME_COMMON_H
 
-#include "include/sysdeps.h"
-#include "include/mem.h"
-#include "include/filesys.h"
-#include "include/process.h"
-#include "include/sys_time.h"
+#include "sysdeps.h"
+#include "mem.h"
+#include "filesys.h"
+#include "process.h"
+#include "sys_time.h"
 
 #endif

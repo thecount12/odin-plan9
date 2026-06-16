@@ -16,7 +16,7 @@ Reference for porting `core/os/posix/` to `core/os/plan9/`.
 
 | POSIX | Plan 9 |
 |-------|--------|
-| `errno` | `errstr()` after `-1` return |
+| `errno` | `errstr(buf, n)` after `-1` return (9front) |
 | `sys_seterr_posix()` | `sys_seterr_plan9()` sets `errno_ = ERR_IO` |
 
 ## Memory

@@ -3,8 +3,9 @@
 
 </$objtype/mkfile
 
+SRC=src
 LIB=libodin_plan9.a
-CFLAGS=-I. -I./src
+CFLAGS=-I$SRC
 
 RUNTIME=../../../sys/src/cmd/odin_runtime/plan9
 
@@ -16,11 +17,11 @@ OFILES=\
 	time.$O\
 
 HFILES=\
-	src/include/sysdeps.h\
-	src/include/mem.h\
-	src/include/filesys.h\
-	src/include/process.h\
-	src/include/sys_time.h\
+	$SRC/sysdeps.h\
+	$SRC/mem.h\
+	$SRC/filesys.h\
+	$SRC/process.h\
+	$SRC/sys_time.h\
 	$RUNTIME/common.h\
 
 all:V: $LIB test_filesys hello
@@ -28,38 +29,38 @@ all:V: $LIB test_filesys hello
 $LIB: $OFILES
 	ar vu $LIB $OFILES
 
-sysdeps.$O: src/sysdeps.c $HFILES
-	$CC $CFLAGS -o $target src/sysdeps.c
+sysdeps.$O: $SRC/sysdeps.c $HFILES
+	$CC $CFLAGS -o $target $SRC/sysdeps.c
 
-mem.$O: src/mem.c $HFILES
-	$CC $CFLAGS -o $target src/mem.c
+mem.$O: $SRC/mem.c $HFILES
+	$CC $CFLAGS -o $target $SRC/mem.c
 
-filesys.$O: src/filesys.c $HFILES
-	$CC $CFLAGS -o $target src/filesys.c
+filesys.$O: $SRC/filesys.c $HFILES
+	$CC $CFLAGS -o $target $SRC/filesys.c
 
-process.$O: src/process.c $HFILES
-	$CC $CFLAGS -o $target src/process.c
+process.$O: $SRC/process.c $HFILES
+	$CC $CFLAGS -o $target $SRC/process.c
 
-time.$O: src/time.c $HFILES
-	$CC $CFLAGS -o $target src/time.c
+time.$O: $SRC/time.c $HFILES
+	$CC $CFLAGS -o $target $SRC/time.c
 
-test_filesys.$O: src/tests/test_filesys.c $HFILES
-	$CC $CFLAGS -o $target src/tests/test_filesys.c
+test_filesys.$O: $SRC/test_filesys.c $HFILES
+	$CC $CFLAGS -o $target $SRC/test_filesys.c
 
 test_filesys: test_filesys.$O $LIB
 	$LD -o $target test_filesys.$O $LIB
 
-hello.$O: examples/hello/hello.c $HFILES
-	$CC $CFLAGS -I$RUNTIME -o $target examples/hello/hello.c
+hello.$O: $SRC/hello.c $HFILES
+	$CC $CFLAGS -I$RUNTIME -o $target $SRC/hello.c
 
 entry.$O: $RUNTIME/entry.c $HFILES
-	$CC $CFLAGS -I$RUNTIME -I./src -o $target $RUNTIME/entry.c
+	$CC $CFLAGS -I$RUNTIME -I$SRC -o $target $RUNTIME/entry.c
 
 hello: hello.$O entry.$O $LIB
 	$LD -o $target hello.$O entry.$O $LIB
 
 clean:V:
-	rm -f *.[$OS] [$OS].out $LIB test_filesys hello entry.$O
+	rm -f *.$O [$O].out $LIB test_filesys hello entry.$O
 
 install:V: $LIB
 	cp $LIB /$objtype/lib/

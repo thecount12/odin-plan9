@@ -1,7 +1,7 @@
 #include <u.h>
 #include <libc.h>
-#include "include/process.h"
-#include "include/sysdeps.h"
+#include "process.h"
+#include "sysdeps.h"
 
 pid_t
 sys_getpid(void)

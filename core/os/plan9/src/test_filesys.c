@@ -1,8 +1,8 @@
 #include <u.h>
 #include <libc.h>
-#include "include/filesys.h"
-#include "include/mem.h"
-#include "include/sysdeps.h"
+#include "filesys.h"
+#include "mem.h"
+#include "sysdeps.h"
 
 void
 main(void)

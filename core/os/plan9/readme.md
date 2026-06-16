@@ -1,8 +1,6 @@
 # Plan 9 C backend for Odin
 
-Native 9front/Plan 9 C runtime mirroring `core/os/posix/`. Same `sys_*` API; different libc calls underneath.
-
-## Build (on 9front)
+Native 9front/Plan 9 C runtime mirroring `core/os/posix/`. All sources and headers live in `src/`; build with `mk` from this directory.
 
 ```sh
 cd core/os/plan9
@@ -10,8 +8,6 @@ mk
 ./test_filesys
 ./hello
 ```
-
-Requires `$objtype` set (e.g. `8` for amd64 on 9front).
 
 See [docs/plan9-delta.md](../../docs/plan9-delta.md) for API replacements.
 
