@@ -2,6 +2,13 @@
 #include "sysdeps.h"
 #include "mmap.h"
 
+/* segprotect(2) page bits — not always in libc.h on all $objtype */
+#ifndef PG_R
+#define PG_R 4
+#define PG_W 2
+#define PG_X 1
+#endif
+
 static ulong
 odin_to_pg(int prot)
 {

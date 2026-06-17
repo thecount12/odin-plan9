@@ -11,7 +11,7 @@ struct SysMutex {
 };
 
 struct SysCond {
-	Rendez r;
+	Channel *ch;
 };
 
 typedef struct ThreadStart ThreadStart;
@@ -91,7 +91,12 @@ sys_cond_create(void)
 		sys_seterr(ERR_IO);
 		return nil;
 	}
-	memset(cond, 0, sizeof(SysCond));
+	cond->ch = chancreate(sizeof(ulong), 8);
+	if(cond->ch == nil) {
+		sys_free(cond);
+		sys_seterr(ERR_IO);
+		return nil;
+	}
 	return cond;
 }
 
@@ -103,7 +108,7 @@ sys_cond_wait(SysCond *cond, SysMutex *mutex)
 		return -1;
 	}
 	unlock(&mutex->lk);
-	sleep(&cond->r, nil, nil);
+	recvul(cond->ch, nil);
 	lock(&mutex->lk);
 	return 0;
 }
@@ -115,7 +120,7 @@ sys_cond_signal(SysCond *cond)
 		sys_seterr(ERR_IO);
 		return -1;
 	}
-	wakeup(&cond->r);
+	sendul(cond->ch, 1);
 	return 0;
 }
 
@@ -126,7 +131,7 @@ sys_cond_broadcast(SysCond *cond)
 		sys_seterr(ERR_IO);
 		return -1;
 	}
-	wakeup(&cond->r);
+	sendul(cond->ch, 1);
 	return 0;
 }
 

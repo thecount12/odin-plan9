@@ -107,7 +107,7 @@ Do not nest project `#include`s inside other header files.
 |-------|--------|
 | `pthread_create` | `procrfork` / `libthread` / channels |
 | `pthread_mutex_*` | `Lock` / channel sync |
-| `pthread_cond_*` | channel rendezvous / `sleep` + `Lock` |
+| `pthread_cond_*` | libthread `Channel` (not `sleep(Rendez)` — clashes with `sleep(ms)`) |
 
 POSIX reference: `core/os/posix/src/sys_thread.c`. Plan 9: `sys_thread.c` + `libthread.a`.
 
