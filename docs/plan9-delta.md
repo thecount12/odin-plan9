@@ -109,14 +109,16 @@ Do not nest project `#include`s inside other header files.
 | `pthread_mutex_*` | `Lock` / channel sync |
 | `pthread_cond_*` | libthread `Channel` (not `sleep(Rendez)` — clashes with `sleep(ms)`) |
 
-POSIX reference: `core/os/posix/src/sys_thread.c`. Plan 9: `sys_thread.c` + `libthread.a`.
+Programs that link `libthread.a` must define `threadmain`, not `main` — libthread supplies `main` (see `thread(2)`).
+
+POSIX reference: `core/os/posix/src/sys_thread.c`. Plan 9: `sys_thread.c` + `libthread.a` (linked only for thread/net tests).
 
 ## mmap (Phase 10 POSIX / Phase 13 Plan 9)
 
 | POSIX | Plan 9 |
 |-------|--------|
-| `mmap` | `segattach(attr, "memory", va, len)` + `segprotect` |
-| `mprotect` | segment protection APIs |
+| `mmap` | `segattach(attr, "memory", va, len)`; `SG_RONLY` for read-only at attach |
+| `mprotect` | `segprotect` where libc provides it; no-op stub on arm64 |
 | `munmap` | segment detach |
 
 POSIX reference: `core/os/posix/src/mmap.c`. Plan 9: `mmap.c` via `segattach`.

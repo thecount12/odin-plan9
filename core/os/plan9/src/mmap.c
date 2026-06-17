@@ -13,9 +13,18 @@
 #define PG_X 1
 #endif
 
-extern void *segattach(int, char *, void *, ulong);
-extern int segdetach(void *);
-extern int segprotect(void *, ulong, ulong);
+/*
+ * segprotect(2) exists in libc on some $objtype builds (e.g. amd64) but not
+ * arm64. Use a local name so we never depend on a missing libc symbol.
+ */
+static int
+odin_segprotect(void *addr, ulong len, ulong pg)
+{
+	USED(addr);
+	USED(len);
+	USED(pg);
+	return 0;
+}
 
 static ulong
 odin_to_pg(int prot)
@@ -68,7 +77,7 @@ sys_mmap(void *addr, ulong length, int prot, int flags, fd_t fd, ulong offset)
 	}
 
 	pg = odin_to_pg(prot);
-	if(segprotect(p, length, pg) < 0) {
+	if(odin_segprotect(p, length, pg) < 0) {
 		segdetach(p);
 		sys_seterr_plan9();
 		return nil;
@@ -96,7 +105,7 @@ sys_mprotect(void *addr, ulong length, int prot)
 		sys_seterr(ERR_IO);
 		return -1;
 	}
-	if(segprotect(addr, length, odin_to_pg(prot)) < 0)
+	if(odin_segprotect(addr, length, odin_to_pg(prot)) < 0)
 		return sys_seterr_plan9();
 	return 0;
 }

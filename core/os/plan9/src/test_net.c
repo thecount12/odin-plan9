@@ -30,10 +30,13 @@ server_thread(void *arg)
 }
 
 void
-main(void)
+threadmain(int argc, char **argv)
 {
 	int failed;
 	SysSockAddr addr;
+
+	USED(argc);
+	USED(argv);
 	SysThread *thread;
 	fd_t client;
 	char msg[32];

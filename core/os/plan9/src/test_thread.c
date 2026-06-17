@@ -29,11 +29,13 @@ worker_fn(void *arg)
 }
 
 void
-main(void)
+threadmain(int argc, char **argv)
 {
 	int failed;
 	SysThread *thread;
 
+	USED(argc);
+	USED(argv);
 	failed = 0;
 	g_count = 0;
 	g_ready = 0;

@@ -3,7 +3,6 @@
 #include "sys_thread.h"
 #include "mem.h"
 
-#pragma lib "libthread.a"
 #include <thread.h>
 
 struct SysMutex {
