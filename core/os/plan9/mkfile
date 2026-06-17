@@ -14,6 +14,8 @@ OFILES=\
 	mem.$O\
 	filesys.$O\
 	path.$O\
+	dir.$O\
+	env.$O\
 	process.$O\
 	time.$O\
 
@@ -23,10 +25,12 @@ HFILES=\
 	$SRC/mem.h\
 	$SRC/filesys.h\
 	$SRC/path.h\
+	$SRC/dir.h\
+	$SRC/env.h\
 	$SRC/process.h\
 	$SRC/sys_time.h\
 
-all:V: $LIB test_filesys test_path hello
+all:V: $LIB test_filesys test_path test_dir test_env hello
 
 $LIB: $OFILES
 	ar vu $LIB $OFILES
@@ -42,6 +46,12 @@ filesys.$O: $SRC/filesys.c $HFILES
 
 path.$O: $SRC/path.c $HFILES
 	$CC $CFLAGS -o $target $SRC/path.c
+
+dir.$O: $SRC/dir.c $HFILES
+	$CC $CFLAGS -o $target $SRC/dir.c
+
+env.$O: $SRC/env.c $HFILES
+	$CC $CFLAGS -o $target $SRC/env.c
 
 process.$O: $SRC/process.c $HFILES
 	$CC $CFLAGS -o $target $SRC/process.c
@@ -61,6 +71,18 @@ test_path.$O: $SRC/test_path.c $HFILES
 test_path: test_path.$O $LIB
 	$LD -o $target test_path.$O $LIB
 
+test_dir.$O: $SRC/test_dir.c $HFILES
+	$CC $CFLAGS -o $target $SRC/test_dir.c
+
+test_dir: test_dir.$O $LIB
+	$LD -o $target test_dir.$O $LIB
+
+test_env.$O: $SRC/test_env.c $HFILES
+	$CC $CFLAGS -o $target $SRC/test_env.c
+
+test_env: test_env.$O $LIB
+	$LD -o $target test_env.$O $LIB
+
 hello.$O: $SRC/hello.c $HFILES
 	$CC $CFLAGS -o $target $SRC/hello.c
 
@@ -71,7 +93,7 @@ hello: hello.$O entry.$O $LIB
 	$LD -o $target hello.$O entry.$O $LIB
 
 clean:V:
-	rm -f *.$O [$O].out $LIB test_filesys test_path hello entry.$O
+	rm -f *.$O [$O].out $LIB test_filesys test_path test_dir test_env hello entry.$O
 
 install:V: $LIB
 	cp $LIB /$objtype/lib/

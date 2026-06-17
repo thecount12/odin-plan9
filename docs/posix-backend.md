@@ -96,6 +96,8 @@ Deliverables:
 - `test_path`, `test_dir`, `test_env` binaries in `mkfile`
 - Append modules to `libodin_plan9.a`
 
+Status: **complete** on 9front (objtypes 6 and 7).
+
 ### Phase 9 — POSIX threading
 
 - `sys_thread_create`, `sys_mutex_*`, `sys_cond_*`

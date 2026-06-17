@@ -99,7 +99,7 @@ Do not nest project `#include`s inside other header files.
 | `opendir` / `readdir` | `open` dir + `dirread` → `Dir` |
 | `closedir` | `close` |
 | `getenv` | `getenv` |
-| `setenv` / `unsetenv` | `putenv` or manual `env` manipulation |
+| `setenv` / `unsetenv` | `putenv("key=value")` / `unsetenv` (9front) |
 
 ## Threading (Phase 13)
 
@@ -128,7 +128,7 @@ Do not nest project `#include`s inside other header files.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 7 | sysdeps, mem, filesys, process, time, hello | **done** (6 + 7) |
-| 8 | path, dir, env + tests | path **done**; dir, env next |
+| 8 | path, dir, env + tests | **done** |
 | 13 | thread, mmap, net | after POSIX Phases 9–11 |
 
 See [posix-backend.md](posix-backend.md) phased roadmap.
