@@ -13,14 +13,9 @@ struct SysDir {
 static void
 free_dirbuf(SysDir *dir)
 {
-	long i;
-
 	if(dir == nil || dir->dbuf == nil)
 		return;
-	for(i = 0; i < dir->nent; i++) {
-		if(dir->dbuf[i].name != nil)
-			free(dir->dbuf[i].name);
-	}
+	/* dirreadall allocates one block; names are embedded — free once. */
 	free(dir->dbuf);
 	dir->dbuf = nil;
 	dir->nent = 0;
@@ -55,7 +50,7 @@ sys_opendir(char *path)
 	dir->nent = 0;
 	dir->index = 0;
 
-	n = dirread(dir->fd, &dir->dbuf);
+	n = dirreadall(dir->fd, &dir->dbuf);
 	close(dir->fd);
 	dir->fd = -1;
 	if(n < 0) {

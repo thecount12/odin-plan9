@@ -96,8 +96,8 @@ Do not nest project `#include`s inside other header files.
 |-------|--------|
 | `getcwd` | `getwd(buf, size)` |
 | `chdir` | `chdir(path)` |
-| `opendir` / `readdir` | `open` + `dirread(fd, &buf)` → cache `Dir*` array |
-| `closedir` | `close`; free each `Dir.name` and buffer |
+| `opendir` / `readdir` | `open` + `dirreadall(fd, &buf)`; iterate cached array |
+| `closedir` | single `free(buf)` — do not free individual `Dir.name` |
 | `getenv` | `getenv(name)` → reads `/env/name` |
 | `setenv` / `unsetenv` | `putenv(name, val)`; `remove("/env/name")` |
 
