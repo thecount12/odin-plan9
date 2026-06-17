@@ -87,7 +87,7 @@ Do not nest project `#include`s inside other header files.
 | POSIX | Plan 9 |
 |-------|--------|
 | `time(NULL)` | `time(0)` |
-| `select` sleep | `osmillisecond()` busy-wait loop |
+| `select` sleep | `sleep(millisecs)` from `libc.h` |
 | `gettimeofday` | coarse: `time(0)` (no sub-second yet) |
 
 ## Threading (not yet ported)
