@@ -96,10 +96,10 @@ Do not nest project `#include`s inside other header files.
 |-------|--------|
 | `getcwd` | `getwd(buf, size)` |
 | `chdir` | `chdir(path)` |
-| `opendir` / `readdir` | `open` dir + `dirread` → `Dir` |
-| `closedir` | `close` |
-| `getenv` | `getenv` |
-| `setenv` / `unsetenv` | `putenv("key=value")` / `unsetenv` (9front) |
+| `opendir` / `readdir` | `open` + `dirread(fd, &buf)` → cache `Dir*` array |
+| `closedir` | `close`; free each `Dir.name` and buffer |
+| `getenv` | `getenv(name)` → reads `/env/name` |
+| `setenv` / `unsetenv` | `putenv(name, val)`; `remove("/env/name")` |
 
 ## Threading (Phase 13)
 

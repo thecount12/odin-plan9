@@ -1,7 +1,6 @@
 #include "common.h"
 #include "sysdeps.h"
 #include "env.h"
-#include "mem.h"
 
 char *
 sys_getenv(char *key)
@@ -16,37 +15,28 @@ sys_getenv(char *key)
 int
 sys_setenv(char *key, char *value)
 {
-	char *buf;
-	int len;
-
 	if(key == nil || value == nil) {
 		sys_seterr(ERR_IO);
 		return -1;
 	}
-
-	len = strlen(key) + strlen(value) + 2;
-	buf = sys_malloc(len);
-	if(buf == nil) {
-		sys_seterr(ERR_IO);
-		return -1;
-	}
-	snprint(buf, len, "%s=%s", key, value);
-	if(putenv(buf) < 0) {
-		sys_free(buf);
+	if(putenv(key, value) < 0)
 		return sys_seterr_plan9();
-	}
-	/* putenv keeps buf; do not free */
 	return 0;
 }
 
 int
 sys_unsetenv(char *key)
 {
+	char path[256];
+
 	if(key == nil) {
 		sys_seterr(ERR_IO);
 		return -1;
 	}
-	if(unsetenv(key) < 0)
+	if(getenv(key) == nil)
+		return 0;
+	snprint(path, sizeof path, "/env/%s", key);
+	if(remove(path) < 0)
 		return sys_seterr_plan9();
 	return 0;
 }
