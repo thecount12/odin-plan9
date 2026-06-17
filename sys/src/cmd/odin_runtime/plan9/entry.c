@@ -1,7 +1,8 @@
 /*
  * Program entry for Odin Plan 9 targets.
  */
-#include "common.h"
+#include <u.h>
+#include <libc.h>
 
 int odin_main(int argc, char **argv);
 
