@@ -73,33 +73,58 @@ make lib                    # build libodin_posix.a
 - `sys_opendir` / `sys_readdir` / `sys_closedir`
 - `sys_getenv`, `sys_setenv`, `sys_unsetenv`
 
-### Phase 3 — Threading
+### Phase 7 — Plan 9 core (complete on 9front)
+
+- `core/os/plan9/`: sysdeps, mem, filesys, process, time
+- `src/common.h` for `<u.h>` / `<libc.h>`; no nested header includes
+- `libodin_plan9.a`, `test_filesys`, `hello` + `entry.c` glue
+- Verified on `$objtype` **6** (amd64) and **7** (arm64)
+
+### Phase 8 — Plan 9 paths & environment
+
+Port POSIX Phase 2 modules to Plan 9 C (reference: `core/os/posix/src/`):
+
+| Module | POSIX source | Plan 9 APIs (see [plan9-delta.md](plan9-delta.md)) |
+|--------|--------------|-----------------------------------------------------|
+| path   | `path.c`     | `getwd`, `chdir` |
+| dir    | `dir.c`      | `open` + `dirread` on directory fd |
+| env    | `env.c`      | `getenv`; `putenv` / `setenv` as available |
+
+Deliverables:
+
+- `path.h` / `path.c`, `dir.h` / `dir.c`, `env.h` / `env.c` under `core/os/plan9/src/`
+- `test_path`, `test_dir`, `test_env` binaries in `mkfile`
+- Append modules to `libodin_plan9.a`
+
+### Phase 9 — POSIX threading
 
 - `sys_thread_create`, `sys_mutex_*`, `sys_cond_*`
 - Map to `pthread` with `-pthread` in LDFLAGS
 - Document Plan 9 delta: no pthread on 9front; use `procrfork` / channels instead
 
-### Phase 4 — Virtual memory
+### Phase 10 — Virtual memory (POSIX)
 
 - `sys_mmap`, `sys_munmap`, `sys_mprotect`
 - Needed for Odin heap allocator and `core:mem/virtual`
 
-### Phase 5 — Networking
+### Phase 11 — Networking (POSIX)
 
 - Socket create/bind/connect/send/recv wrappers
 - Plan 9 delta: `/net` dial/listen instead of BSD sockets
 
-### Phase 6 — Compiler integration
+### Phase 12 — Compiler integration
 
-- Populate `sys/src/cmd/odin_runtime/common.h` as the umbrella include
-- Link `libodin_posix.a` when targeting a hypothetical `odin build -target=posix-c89`
+- Populate `sys/src/cmd/odin_runtime/` entry glue per target
+- Link `libodin_posix.a` or `libodin_plan9.a` from the Odin driver
 - Provide `main` / `_start` glue if compiling without Odin `base:runtime` entry
 
-### Phase 7 — Plan 9 port
+### Phase 13 — Plan 9 advanced modules
 
-- Copy `core/os/posix/src` → `core/os/plan9/src`
-- Replace POSIX includes per module (document in `docs/plan9-delta.md`)
-- Build with `mk` and `8c`/`8l`
+Port POSIX Phases 9–11 to Plan 9 after POSIX reference tests pass:
+
+- thread → `procrfork`, `Lock`, channels
+- mmap → segment attach / `/dev/swap`
+- net → `dial`, `announce`, `/net/cs`
 
 ## Plan 9 API replacements (reference)
 

@@ -8,6 +8,7 @@ Native 9front/Plan 9 C runtime mirroring `core/os/posix/`. All sources and heade
 cd core/os/plan9
 mk
 ./test_filesys
+./test_path
 ./hello
 ```
 
@@ -15,6 +16,9 @@ See [docs/plan9-delta.md](../../docs/plan9-delta.md) for API replacements.
 
 ## Status
 
-Phase 7 (in progress): sysdeps, mem, filesys, process, time, test_filesys, hello.
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 7 | sysdeps, mem, filesys, process, time, test_filesys, hello | done (amd64 + arm64) |
+| 8 | path, dir, env + tests | path done; dir, env next |
 
-Not yet ported: path, dir, env, thread, mmap, net.
+See [posix-backend.md](../../docs/posix-backend.md) for the full roadmap (Phases 9–13: threading, mmap, net, compiler integration).

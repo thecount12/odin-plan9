@@ -13,6 +13,7 @@ OFILES=\
 	sysdeps.$O\
 	mem.$O\
 	filesys.$O\
+	path.$O\
 	process.$O\
 	time.$O\
 
@@ -21,10 +22,11 @@ HFILES=\
 	$SRC/sysdeps.h\
 	$SRC/mem.h\
 	$SRC/filesys.h\
+	$SRC/path.h\
 	$SRC/process.h\
 	$SRC/sys_time.h\
 
-all:V: $LIB test_filesys hello
+all:V: $LIB test_filesys test_path hello
 
 $LIB: $OFILES
 	ar vu $LIB $OFILES
@@ -38,6 +40,9 @@ mem.$O: $SRC/mem.c $HFILES
 filesys.$O: $SRC/filesys.c $HFILES
 	$CC $CFLAGS -o $target $SRC/filesys.c
 
+path.$O: $SRC/path.c $HFILES
+	$CC $CFLAGS -o $target $SRC/path.c
+
 process.$O: $SRC/process.c $HFILES
 	$CC $CFLAGS -o $target $SRC/process.c
 
@@ -50,6 +55,12 @@ test_filesys.$O: $SRC/test_filesys.c $HFILES
 test_filesys: test_filesys.$O $LIB
 	$LD -o $target test_filesys.$O $LIB
 
+test_path.$O: $SRC/test_path.c $HFILES
+	$CC $CFLAGS -o $target $SRC/test_path.c
+
+test_path: test_path.$O $LIB
+	$LD -o $target test_path.$O $LIB
+
 hello.$O: $SRC/hello.c $HFILES
 	$CC $CFLAGS -o $target $SRC/hello.c
 
@@ -60,7 +71,7 @@ hello: hello.$O entry.$O $LIB
 	$LD -o $target hello.$O entry.$O $LIB
 
 clean:V:
-	rm -f *.$O [$O].out $LIB test_filesys hello entry.$O
+	rm -f *.$O [$O].out $LIB test_filesys test_path hello entry.$O
 
 install:V: $LIB
 	cp $LIB /$objtype/lib/

@@ -90,14 +90,25 @@ Do not nest project `#include`s inside other header files.
 | `select` sleep | `sleep(millisecs)` from `libc.h` |
 | `gettimeofday` | coarse: `time(0)` (no sub-second yet) |
 
-## Threading (not yet ported)
+## Paths & environment (Phase 8)
+
+| POSIX | Plan 9 |
+|-------|--------|
+| `getcwd` | `getwd(buf, size)` |
+| `chdir` | `chdir(path)` |
+| `opendir` / `readdir` | `open` dir + `dirread` → `Dir` |
+| `closedir` | `close` |
+| `getenv` | `getenv` |
+| `setenv` / `unsetenv` | `putenv` or manual `env` manipulation |
+
+## Threading (Phase 13)
 
 | POSIX | Plan 9 |
 |-------|--------|
 | `pthread_create` | `procrfork` / `libthread` / channels |
 | `pthread_mutex_*` | `Lock` / channel sync |
 
-## mmap (not yet ported)
+## mmap (Phase 13)
 
 | POSIX | Plan 9 |
 |-------|--------|
@@ -105,28 +116,22 @@ Do not nest project `#include`s inside other header files.
 | `mprotect` | segment protection APIs |
 | `munmap` | segment detach |
 
-## Networking (not yet ported)
+## Networking (Phase 13)
 
 | POSIX | Plan 9 |
 |-------|--------|
 | `socket` / `connect` | `dial`, `announce`, `/net/cs` |
 | `bind` / `listen` | `announce` |
 
-## Module port status
+## Plan 9 port progress
 
-| Module | Plan 9 status |
-|--------|---------------|
-| sysdeps | done |
-| mem | done |
-| filesys | done |
-| process | done (basic) |
-| sys_time | done (coarse) |
-| path | planned |
-| dir | planned |
-| env | planned |
-| thread | planned |
-| mmap | planned |
-| net | planned |
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 7 | sysdeps, mem, filesys, process, time, hello | **done** (6 + 7) |
+| 8 | path, dir, env + tests | path **done**; dir, env next |
+| 13 | thread, mmap, net | after POSIX Phases 9–11 |
+
+See [posix-backend.md](posix-backend.md) phased roadmap.
 
 ## Workflow
 
