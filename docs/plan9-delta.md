@@ -101,14 +101,17 @@ Do not nest project `#include`s inside other header files.
 | `getenv` | `getenv(name)` → reads `/env/name` |
 | `setenv` / `unsetenv` | `putenv(name, val)`; `remove("/env/name")` |
 
-## Threading (Phase 13)
+## Threading (Phase 9 POSIX / Phase 13 Plan 9)
 
 | POSIX | Plan 9 |
 |-------|--------|
 | `pthread_create` | `procrfork` / `libthread` / channels |
 | `pthread_mutex_*` | `Lock` / channel sync |
+| `pthread_cond_*` | channel rendezvous / `sleep` + `Lock` |
 
-## mmap (Phase 13)
+POSIX reference: `core/os/posix/src/thread.c` (`-pthread`). Not yet ported to Plan 9.
+
+## mmap (Phase 10 POSIX / Phase 13 Plan 9)
 
 | POSIX | Plan 9 |
 |-------|--------|
@@ -116,12 +119,17 @@ Do not nest project `#include`s inside other header files.
 | `mprotect` | segment protection APIs |
 | `munmap` | segment detach |
 
-## Networking (Phase 13)
+POSIX reference: `core/os/posix/src/mmap.c`. Not yet ported to Plan 9.
+
+## Networking (Phase 11 POSIX / Phase 13 Plan 9)
 
 | POSIX | Plan 9 |
 |-------|--------|
 | `socket` / `connect` | `dial`, `announce`, `/net/cs` |
 | `bind` / `listen` | `announce` |
+| `send` / `recv` | `read` / `write` on connection fd |
+
+POSIX reference: `core/os/posix/src/net.c`. Not yet ported to Plan 9.
 
 ## Plan 9 port progress
 

@@ -16,7 +16,9 @@ The POSIX C89 backend serves as an intermediate step between Odin's native compi
 cd core/os/posix
 make clean && make          # build all tests
 make lib                    # build libodin_posix.a
-./test_mem && ./test_filesys && ./test_path && ./test_dir && ./test_env && ./test_process && ./test_time
+make integration            # build ./hello (Phase 12)
+./hello
+./test_mem && ./test_filesys && ./test_path && ./test_dir && ./test_env && ./test_process && ./test_time && ./test_thread && ./test_mmap && ./test_net
 ```
 
 See [docs/posix-backend.md](../../docs/posix-backend.md) for architecture and roadmap.

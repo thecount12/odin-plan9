@@ -1,17 +1,6 @@
 /*
- * Umbrella header for the Odin C89 POSIX runtime.
- * Include this from compiler-generated C or host glue code.
+ * Odin runtime entry glue (target-specific).
+ *
+ *   POSIX:  posix/entry.c  + core/os/posix/
+ *   Plan 9: plan9/entry.c  + core/os/plan9/
  */
-#ifndef ODIN_RUNTIME_COMMON_H
-#define ODIN_RUNTIME_COMMON_H
-
-#include "sysdeps.h"
-#include "mem.h"
-#include "filesys.h"
-#include "path.h"
-#include "dir.h"
-#include "env.h"
-#include "process.h"
-#include "time.h"
-
-#endif

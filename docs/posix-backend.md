@@ -32,9 +32,9 @@ The backend is **not** a new Odin compiler. It is a thin C89 `sys_*` layer that:
 | env        | `env.h`             | getenv, setenv, unsetenv                 | done     |
 | process    | `process.h`         | fork, exec, wait, getpid                 | done     |
 | time       | `time.h`            | time, gettimeofday, select               | done     |
-| thread     | `thread.h`          | pthread_create, mutex, cond              | planned  |
-| mmap       | `mmap.h`            | mmap, mprotect, munmap                   | planned  |
-| net        | `net.h`             | socket, connect, bind                    | planned  |
+| thread     | `thread.h`          | pthread_create, mutex, cond              | done     |
+| mmap       | `mmap.h`            | mmap, mprotect, munmap                   | done     |
+| net        | `net.h`             | socket, bind, connect, send, recv         | done     |
 
 ### Naming conventions
 
@@ -56,7 +56,9 @@ The backend is **not** a new Odin compiler. It is a thin C89 `sys_*` layer that:
 cd core/os/posix
 make clean && make          # build tests
 make lib                    # build libodin_posix.a
-./test_mem && ./test_filesys && ./test_dir && ./test_env && ./test_process && ./test_time
+make integration            # link hello (entry.c + odin_main + lib)
+./hello
+./test_mem && ./test_filesys && ./test_dir && ./test_env && ./test_process && ./test_time && ./test_thread && ./test_mmap && ./test_net
 ```
 
 ## Phased roadmap
@@ -98,27 +100,43 @@ Deliverables:
 
 Status: **complete** on 9front (objtypes 6 and 7).
 
-### Phase 9 — POSIX threading
+### Phase 9 — POSIX threading (complete)
 
-- `sys_thread_create`, `sys_mutex_*`, `sys_cond_*`
-- Map to `pthread` with `-pthread` in LDFLAGS
-- Document Plan 9 delta: no pthread on 9front; use `procrfork` / channels instead
+- `sys_mutex_create` / `lock` / `unlock` / `destroy`
+- `sys_cond_create` / `wait` / `signal` / `broadcast` / `destroy`
+- `sys_thread_create` / `sys_thread_join`
+- Build with `-pthread` in `CFLAGS` and `LDFLAGS`
+- Plan 9 delta (Phase 13): `procrfork`, `Lock`, channels — see [plan9-delta.md](plan9-delta.md)
 
-### Phase 10 — Virtual memory (POSIX)
+### Phase 10 — Virtual memory (POSIX, complete)
 
 - `sys_mmap`, `sys_munmap`, `sys_mprotect`
-- Needed for Odin heap allocator and `core:mem/virtual`
+- `ODIN_PROT_*` and `ODIN_MAP_*` flag enums (mapped to `PROT_*` / `MAP_*` in `mmap.c`)
+- Plan 9 delta (Phase 13): segment attach / `/dev/swap`
 
-### Phase 11 — Networking (POSIX)
+### Phase 11 — Networking (POSIX, complete)
 
-- Socket create/bind/connect/send/recv wrappers
-- Plan 9 delta: `/net` dial/listen instead of BSD sockets
+- `sys_socket`, `sys_bind`, `sys_listen`, `sys_accept`, `sys_connect`, `sys_send`, `sys_recv`
+- `SysSockAddr` + `sys_sockaddr_in()` helper (no `<netinet/in.h>` in public headers)
+- Plan 9 delta (Phase 13): `dial`, `announce`, `/net/cs`
 
-### Phase 12 — Compiler integration
+### Phase 12 — Compiler integration (complete)
 
-- Populate `sys/src/cmd/odin_runtime/` entry glue per target
-- Link `libodin_posix.a` or `libodin_plan9.a` from the Odin driver
-- Provide `main` / `_start` glue if compiling without Odin `base:runtime` entry
+POSIX end-to-end glue (mirrors Plan 9 `hello`):
+
+| Piece | Path |
+|-------|------|
+| Entry `main` | `sys/src/cmd/odin_runtime/posix/entry.c` |
+| Example `odin_main` | `core/os/posix/examples/hello/hello.c` |
+| Static library | `libodin_posix.a` |
+
+```bash
+cd core/os/posix
+make integration
+./hello    # hello from odin posix-c89
+```
+
+Odin compiler wiring (`odin build -target=posix-c89`) is future work; this proves the link model.
 
 ### Phase 13 — Plan 9 advanced modules
 

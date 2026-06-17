@@ -319,6 +319,7 @@ core/os/posix/hello
 core/os/posix/examples/**/*.o
 core/os/posix/libodin_posix.a
 sys/src/cmd/odin_runtime/entry.o
+sys/src/cmd/odin_runtime/posix/entry.o
 
 # Plan 9 backend build artifacts
 core/os/plan9/*.$O
