@@ -15,6 +15,8 @@ enum {
 };
 
 int sys_sockaddr_in(SysSockAddr *addr, char *host, uint32 port);
+int sys_sockaddr_listen_tcp(SysSockAddr *addr, uint32 port);
+int sys_sockaddr_local_tcp(SysSockAddr *addr, uint32 port);
 
 fd_t sys_socket(int domain, int type, int protocol);
 int sys_socket_set_reuseaddr(fd_t sock, int on);

@@ -49,6 +49,40 @@ sys_sockaddr_in(SysSockAddr *addr, char *host, uint32 port)
 	return 0;
 }
 
+int
+sys_sockaddr_listen_tcp(SysSockAddr *addr, uint32 port)
+{
+	if(addr == nil) {
+		sys_seterr(ERR_IO);
+		return -1;
+	}
+	snprint((char *)addr->storage, SYS_SOCKADDR_MAX, "tcp!*!%lud", (ulong)port);
+	addr->len = strlen((char *)addr->storage);
+	return 0;
+}
+
+int
+sys_sockaddr_local_tcp(SysSockAddr *addr, uint32 port)
+{
+	char portstr[16];
+	char *dial;
+
+	if(addr == nil) {
+		sys_seterr(ERR_IO);
+		return -1;
+	}
+	snprint(portstr, sizeof portstr, "%lud", (ulong)port);
+	dial = netmkaddr(nil, "tcp", portstr);
+	if(dial == nil) {
+		sys_seterr(ERR_IO);
+		return -1;
+	}
+	snprint((char *)addr->storage, SYS_SOCKADDR_MAX, "%s", dial);
+	addr->len = strlen((char *)addr->storage);
+	free(dial);
+	return 0;
+}
+
 fd_t
 sys_socket(int domain, int type, int protocol)
 {
