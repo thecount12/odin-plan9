@@ -326,5 +326,11 @@ core/os/plan9/*.$O
 core/os/plan9/[$O].out
 core/os/plan9/libodin_plan9.a
 core/os/plan9/test_filesys
+core/os/plan9/test_path
+core/os/plan9/test_dir
+core/os/plan9/test_env
+core/os/plan9/test_mmap
+core/os/plan9/test_thread
+core/os/plan9/test_net
 core/os/plan9/hello
 core/os/plan9/entry.$O

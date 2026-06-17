@@ -138,13 +138,23 @@ make integration
 
 Odin compiler wiring (`odin build -target=posix-c89`) is future work; this proves the link model.
 
-### Phase 13 — Plan 9 advanced modules
+### Phase 13 — Plan 9 advanced modules (complete)
 
-Port POSIX Phases 9–11 to Plan 9 after POSIX reference tests pass:
+| Module | Plan 9 implementation |
+|--------|----------------------|
+| thread | `Lock`/`Rendez` + `libthread` (`proccreate`, channels) in `sys_thread.c` |
+| mmap | `segattach` / `segprotect` / `segdetach` |
+| net | `announce` / `listen` / `accept` / `dial` + `read`/`write` |
 
-- thread → `procrfork`, `Lock`, channels
-- mmap → segment attach / `/dev/swap`
-- net → `dial`, `announce`, `/net/cs`
+```sh
+cd core/os/plan9
+mk
+./test_mmap
+./test_thread   # links libthread.a
+./test_net      # links libthread.a
+```
+
+Header note: `sys_thread.h` (not `thread.h`) avoids clashing with libc `thread.h`.
 
 ## Plan 9 API replacements (reference)
 

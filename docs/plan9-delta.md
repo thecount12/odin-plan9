@@ -109,7 +109,7 @@ Do not nest project `#include`s inside other header files.
 | `pthread_mutex_*` | `Lock` / channel sync |
 | `pthread_cond_*` | channel rendezvous / `sleep` + `Lock` |
 
-POSIX reference: `core/os/posix/src/thread.c` (`-pthread`). Not yet ported to Plan 9.
+POSIX reference: `core/os/posix/src/sys_thread.c`. Plan 9: `sys_thread.c` + `libthread.a`.
 
 ## mmap (Phase 10 POSIX / Phase 13 Plan 9)
 
@@ -119,7 +119,7 @@ POSIX reference: `core/os/posix/src/thread.c` (`-pthread`). Not yet ported to Pl
 | `mprotect` | segment protection APIs |
 | `munmap` | segment detach |
 
-POSIX reference: `core/os/posix/src/mmap.c`. Not yet ported to Plan 9.
+POSIX reference: `core/os/posix/src/mmap.c`. Plan 9: `mmap.c` via `segattach`.
 
 ## Networking (Phase 11 POSIX / Phase 13 Plan 9)
 
@@ -129,17 +129,17 @@ POSIX reference: `core/os/posix/src/mmap.c`. Not yet ported to Plan 9.
 | `bind` / `listen` | `announce` |
 | `send` / `recv` | `read` / `write` on connection fd |
 
-POSIX reference: `core/os/posix/src/net.c`. Not yet ported to Plan 9.
+POSIX reference: `core/os/posix/src/net.c`. Plan 9: `net.c` via `dial`/`announce`.
 
 ## Plan 9 port progress
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 7 | sysdeps, mem, filesys, process, time, hello | **done** (6 + 7) |
-| 8 | path, dir, env + tests | **done** |
-| 13 | thread, mmap, net | after POSIX Phases 9–11 |
+| 8 | path, dir, env + tests | done |
+| 13 | mmap, sys_thread, net + tests | done |
 
-See [posix-backend.md](posix-backend.md) phased roadmap.
+See [posix-backend.md](../../docs/posix-backend.md) for the full roadmap.
 
 ## Workflow
 

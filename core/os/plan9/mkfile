@@ -6,6 +6,7 @@
 SRC=src
 LIB=libodin_plan9.a
 CFLAGS=-I$SRC
+LIBTHREAD=/$objtype/lib/libthread.a
 
 RUNTIME=../../../sys/src/cmd/odin_runtime/plan9
 
@@ -18,6 +19,9 @@ OFILES=\
 	env.$O\
 	process.$O\
 	time.$O\
+	mmap.$O\
+	sys_thread.$O\
+	net.$O\
 
 HFILES=\
 	$SRC/common.h\
@@ -29,8 +33,11 @@ HFILES=\
 	$SRC/env.h\
 	$SRC/process.h\
 	$SRC/sys_time.h\
+	$SRC/mmap.h\
+	$SRC/sys_thread.h\
+	$SRC/net.h\
 
-all:V: $LIB test_filesys test_path test_dir test_env hello
+all:V: $LIB test_filesys test_path test_dir test_env test_mmap test_thread test_net hello
 
 $LIB: $OFILES
 	ar vu $LIB $OFILES
@@ -59,6 +66,15 @@ process.$O: $SRC/process.c $HFILES
 time.$O: $SRC/time.c $HFILES
 	$CC $CFLAGS -o $target $SRC/time.c
 
+mmap.$O: $SRC/mmap.c $HFILES
+	$CC $CFLAGS -o $target $SRC/mmap.c
+
+sys_thread.$O: $SRC/sys_thread.c $HFILES
+	$CC $CFLAGS -o $target $SRC/sys_thread.c
+
+net.$O: $SRC/net.c $HFILES
+	$CC $CFLAGS -o $target $SRC/net.c
+
 test_filesys.$O: $SRC/test_filesys.c $HFILES
 	$CC $CFLAGS -o $target $SRC/test_filesys.c
 
@@ -83,6 +99,24 @@ test_env.$O: $SRC/test_env.c $HFILES
 test_env: test_env.$O $LIB
 	$LD -o $target test_env.$O $LIB
 
+test_mmap.$O: $SRC/test_mmap.c $HFILES
+	$CC $CFLAGS -o $target $SRC/test_mmap.c
+
+test_mmap: test_mmap.$O $LIB
+	$LD -o $target test_mmap.$O $LIB
+
+test_thread.$O: $SRC/test_thread.c $HFILES
+	$CC $CFLAGS -o $target $SRC/test_thread.c
+
+test_thread: test_thread.$O $LIB
+	$LD -o $target test_thread.$O $LIB $LIBTHREAD
+
+test_net.$O: $SRC/test_net.c $HFILES
+	$CC $CFLAGS -o $target $SRC/test_net.c
+
+test_net: test_net.$O $LIB
+	$LD -o $target test_net.$O $LIB $LIBTHREAD
+
 hello.$O: $SRC/hello.c $HFILES
 	$CC $CFLAGS -o $target $SRC/hello.c
 
@@ -93,7 +127,7 @@ hello: hello.$O entry.$O $LIB
 	$LD -o $target hello.$O entry.$O $LIB
 
 clean:V:
-	rm -f *.$O [$O].out $LIB test_filesys test_path test_dir test_env hello entry.$O
+	rm -f *.$O [$O].out $LIB test_filesys test_path test_dir test_env test_mmap test_thread test_net hello entry.$O
 
 install:V: $LIB
 	cp $LIB /$objtype/lib/

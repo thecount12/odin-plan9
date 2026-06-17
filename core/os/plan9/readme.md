@@ -11,6 +11,9 @@ mk
 ./test_path
 ./test_dir
 ./test_env
+./test_mmap
+./test_thread
+./test_net
 ./hello
 ```
 
@@ -22,5 +25,6 @@ See [docs/plan9-delta.md](../../docs/plan9-delta.md) for API replacements.
 |-------|-------|--------|
 | 7 | sysdeps, mem, filesys, process, time, test_filesys, hello | done (amd64 + arm64) |
 | 8 | path, dir, env + tests | done |
+| 13 | mmap, sys_thread, net + tests | done |
 
 See [posix-backend.md](../../docs/posix-backend.md) for the full roadmap (Phases 9–13: threading, mmap, net, compiler integration).
