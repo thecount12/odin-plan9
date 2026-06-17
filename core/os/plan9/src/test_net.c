@@ -7,6 +7,78 @@
 
 static fd_t g_listen;
 
+static int
+parse_port(char *s, uint32 *port)
+{
+	char *e;
+	ulong v;
+
+	if(s == nil || port == nil) {
+		sys_seterr(ERR_IO);
+		return -1;
+	}
+	v = strtoul(s, &e, 10);
+	if(e == s || *e != '\0' || v > 65535) {
+		sys_seterr(ERR_IO);
+		return -1;
+	}
+	*port = (uint32)v;
+	return 0;
+}
+
+static int
+run_echo_client(char *host, uint32 port)
+{
+	SysSockAddr addr;
+	fd_t client;
+	char msg[32];
+	char buf[64];
+	long n;
+	int failed;
+
+	failed = 0;
+	client = sys_socket(ODIN_AF_INET, ODIN_SOCK_STREAM, 0);
+	if(client < 0) {
+		print("FAIL: client socket\n");
+		return 1;
+	}
+
+	if(host != nil) {
+		if(sys_sockaddr_in(&addr, host, port) != 0) {
+			print("FAIL: sockaddr_in\n");
+			failed = 1;
+		}
+	} else if(sys_sockaddr_local_tcp(&addr, port) != 0) {
+		print("FAIL: sockaddr local\n");
+		failed = 1;
+	}
+
+	if(!failed) {
+		print("net test: dial %s\n", (char *)addr.storage);
+		if(sys_connect(client, &addr) != 0) {
+			print("FAIL: connect\n");
+			failed = 1;
+		} else {
+			sys_memcpy(msg, "odin_net", 9);
+			if(sys_send(client, msg, 8, 0) != 8) {
+				print("FAIL: send\n");
+				failed = 1;
+			} else {
+				n = sys_recv(client, buf, sizeof(buf) - 1, 0);
+				if(n != 8 || sys_memcmp(buf, "odin_net", 8) != 0) {
+					print("FAIL: recv echo (n=%ld)\n", n);
+					failed = 1;
+				} else {
+					print("PASS: tcp connect/send/recv echo\n");
+				}
+			}
+		}
+	}
+
+	sys_socket_close(client);
+	return failed;
+}
+
 static void *
 server_thread(void *arg)
 {
@@ -31,29 +103,22 @@ server_thread(void *arg)
 	return nil;
 }
 
-void
-threadmain(int argc, char **argv)
+static int
+run_local_test(void)
 {
 	int failed;
 	SysSockAddr addr;
 	SysThread *thread;
-	fd_t client;
-	char msg[32];
-	char buf[64];
-	long n;
 	uint32 port;
-
-	USED(argc);
-	USED(argv);
 
 	failed = 0;
 	port = (uint32)(40000 + (sys_getpid() % 20000));
-	print("net test: port=%lud\n", (ulong)port);
+	print("net test: local port=%lud\n", (ulong)port);
 
 	g_listen = sys_socket(ODIN_AF_INET, ODIN_SOCK_STREAM, 0);
 	if(g_listen < 0) {
 		print("FAIL: socket\n");
-		exits("fail");
+		return 1;
 	}
 
 	if(sys_socket_set_reuseaddr(g_listen, 1) != 0) {
@@ -71,6 +136,8 @@ threadmain(int argc, char **argv)
 		if(sys_bind(g_listen, &addr) != 0) {
 			print("FAIL: bind\n");
 			failed = 1;
+		} else {
+			print("net test: announced dir %s\n", sys_socket_dir(g_listen));
 		}
 	}
 
@@ -79,6 +146,8 @@ threadmain(int argc, char **argv)
 		if(sys_listen(g_listen, 1) != 0) {
 			print("FAIL: listen\n");
 			failed = 1;
+		} else {
+			print("net test: listen ok\n");
 		}
 	}
 
@@ -88,40 +157,8 @@ threadmain(int argc, char **argv)
 			print("FAIL: thread_create\n");
 			failed = 1;
 		} else {
-			/* let the server proc reach accept() before we dial */
 			sleep(200);
-		}
-	}
-
-	if(!failed) {
-		client = sys_socket(ODIN_AF_INET, ODIN_SOCK_STREAM, 0);
-		if(client < 0) {
-			print("FAIL: client socket\n");
-			failed = 1;
-		} else if(sys_sockaddr_local_tcp(&addr, port) != 0) {
-			print("FAIL: sockaddr local\n");
-			failed = 1;
-		} else {
-			print("net test: dial %s\n", (char *)addr.storage);
-			if(sys_connect(client, &addr) != 0) {
-				print("FAIL: connect\n");
-				failed = 1;
-			} else {
-				sys_memcpy(msg, "odin_net", 9);
-				if(sys_send(client, msg, 8, 0) != 8) {
-					print("FAIL: send\n");
-					failed = 1;
-				} else {
-					n = sys_recv(client, buf, sizeof(buf) - 1, 0);
-					if(n != 8 || sys_memcmp(buf, "odin_net", 8) != 0) {
-						print("FAIL: recv echo (n=%ld)\n", n);
-						failed = 1;
-					} else {
-						print("PASS: tcp connect/send/recv echo\n");
-					}
-				}
-			}
-			sys_socket_close(client);
+			failed = run_echo_client(nil, port);
 		}
 	}
 
@@ -131,6 +168,30 @@ threadmain(int argc, char **argv)
 	}
 
 	sys_socket_close(g_listen);
+	return failed;
+}
+
+void
+threadmain(int argc, char **argv)
+{
+	uint32 port;
+	int failed;
+
+	failed = 0;
+
+	if(argc == 3) {
+		if(parse_port(argv[2], &port) != 0) {
+			print("usage: test_net [host port]\n");
+			exits("usage");
+		}
+		print("net test: remote host=%s port=%lud\n", argv[1], (ulong)port);
+		failed = run_echo_client(argv[1], port);
+	} else if(argc == 1) {
+		failed = run_local_test();
+	} else {
+		print("usage: test_net [host port]\n");
+		exits("usage");
+	}
 
 	if(!failed)
 		print("\nAll network tests passed!\n");

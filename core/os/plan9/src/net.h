@@ -27,5 +27,6 @@ int sys_connect(fd_t sock, SysSockAddr *addr);
 long sys_send(fd_t sock, void *buf, long len, int flags);
 long sys_recv(fd_t sock, void *buf, long len, int flags);
 void sys_socket_close(fd_t sock);
+const char *sys_socket_dir(fd_t sock);
 
 #endif

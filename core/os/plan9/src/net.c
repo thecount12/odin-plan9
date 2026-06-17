@@ -11,9 +11,11 @@ enum {
 
 #define NET_SLOTS 16
 
+#define NET_ADIR_MAX 128
+
 typedef struct {
 	int state;
-	char adir[40];
+	char adir[NET_ADIR_MAX];
 	int lfd;
 	int cfd;
 } NetSlot;
@@ -272,4 +274,12 @@ sys_socket_close(fd_t sock)
 	if(n->lfd >= 0)
 		close(n->lfd);
 	memset(n, 0, sizeof(NetSlot));
+}
+
+const char *
+sys_socket_dir(fd_t sock)
+{
+	if(!net_slot_valid(sock))
+		return nil;
+	return net_slot[sock].adir;
 }
