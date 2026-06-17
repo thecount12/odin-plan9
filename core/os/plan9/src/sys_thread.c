@@ -108,7 +108,7 @@ sys_cond_wait(SysCond *cond, SysMutex *mutex)
 		return -1;
 	}
 	unlock(&mutex->lk);
-	recvul(cond->ch, nil);
+	recvul(cond->ch);
 	lock(&mutex->lk);
 	return 0;
 }
@@ -194,7 +194,7 @@ sys_thread_join(SysThread *thread, void **retval)
 		sys_seterr(ERR_IO);
 		return -1;
 	}
-	recvul(thread->done, nil);
+	recvul(thread->done);
 	sys_free(thread);
 	return 0;
 }

@@ -115,7 +115,7 @@ POSIX reference: `core/os/posix/src/sys_thread.c`. Plan 9: `sys_thread.c` + `lib
 
 | POSIX | Plan 9 |
 |-------|--------|
-| `mmap` | `/dev/swap`, segment attach |
+| `mmap` | `segattach(attr, "memory", va, len)` + `segprotect` |
 | `mprotect` | segment protection APIs |
 | `munmap` | segment detach |
 
