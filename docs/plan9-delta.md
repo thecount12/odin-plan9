@@ -131,6 +131,8 @@ POSIX reference: `core/os/posix/src/mmap.c`. Plan 9: `mmap.c` via `segattach`.
 | `bind` / `listen` | `announce` |
 | `send` / `recv` | `read` / `write` on connection fd |
 
+Local TCP tests should dial `tcp!$sysname!port` (or the machine IP), not `127.0.0.1`, unless loopback is configured (`ip/ipconfig` on `loopback`).
+
 POSIX reference: `core/os/posix/src/net.c`. Plan 9: `net.c` via `dial`/`announce`.
 
 ## Plan 9 port progress
