@@ -12,6 +12,16 @@ Reference for porting `core/os/posix/` to `core/os/plan9/`.
 | `#include <unistd.h>` | `#include <u.h>` + `#include <libc.h>` |
 | `main()` returns `int` | `void main()` + `exits(nil)` |
 
+## Types
+
+| POSIX / typical C | Plan 9 / 9front |
+|-------------------|-----------------|
+| `uint64_t` / `unsigned long long` | `uvlong` (not `unsigned long`, which is 32-bit) |
+| `int64_t` | `vlong` |
+| `%llu` in `printf` | `%llud` in `print` for `uvlong` |
+
+`sysdeps.h` maps `ulonglong` → `uvlong` so `Stat.length` and `Stat.ino` stay 64-bit.
+
 ## Errors
 
 | POSIX | Plan 9 |

@@ -1,9 +1,12 @@
 #ifndef SYSDEPS_H
 #define SYSDEPS_H
 
+#include <u.h>
+
 typedef unsigned long ulong;
 typedef unsigned int uint32;
-typedef unsigned long ulonglong;
+/* Plan 9 unsigned long is 32-bit even on amd64; use uvlong for 64-bit fields. */
+typedef uvlong ulonglong;
 
 enum {
     ERR_OK = 0,

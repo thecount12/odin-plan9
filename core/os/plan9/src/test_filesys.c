@@ -54,8 +54,15 @@ main(void)
 	if(sys_stat(test_path, &st) != 0) {
 		print("FAIL: stat failed\n");
 		failed = 1;
+	} else if(st.type != ODIN_S_IFREG) {
+		print("FAIL: stat type %ud, expected regular file\n", st.type);
+		failed = 1;
+	} else if(st.length != (ulonglong)sys_strlen(test_str)) {
+		print("FAIL: stat size %llud, expected %ld\n",
+			st.length, sys_strlen(test_str));
+		failed = 1;
 	} else {
-		print("PASS: stat (size=%lld)\n", st.length);
+		print("PASS: stat (size=%llud, type=file)\n", st.length);
 	}
 
 	sys_unlink(test_path);
