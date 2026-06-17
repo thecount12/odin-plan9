@@ -1,8 +1,7 @@
-#include <u.h>
-#include <libc.h>
+#include "common.h"
+#include "sysdeps.h"
 #include "filesys.h"
 #include "mem.h"
-#include "sysdeps.h"
 
 void
 main(void)
@@ -57,12 +56,17 @@ main(void)
 	} else if(st.type != ODIN_S_IFREG) {
 		print("FAIL: stat type %ud, expected regular file\n", st.type);
 		failed = 1;
-	} else if(st.length != (ulonglong)sys_strlen(test_str)) {
-		print("FAIL: stat size %llud, expected %ld\n",
-			st.length, sys_strlen(test_str));
+	} else if(!sys_ull_eq_ulong(st.length, (ulong)sys_strlen(test_str))) {
+		char sz[32];
+
+		sys_ull_snprint(st.length, sz, sizeof sz);
+		print("FAIL: stat size %s, expected %ld\n", sz, sys_strlen(test_str));
 		failed = 1;
 	} else {
-		print("PASS: stat (size=%llud, type=file)\n", st.length);
+		char sz[32];
+
+		sys_ull_snprint(st.length, sz, sizeof sz);
+		print("PASS: stat (size=%s, type=file)\n", sz);
 	}
 
 	sys_unlink(test_path);

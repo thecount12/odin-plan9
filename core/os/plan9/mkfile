@@ -17,12 +17,12 @@ OFILES=\
 	time.$O\
 
 HFILES=\
+	$SRC/common.h\
 	$SRC/sysdeps.h\
 	$SRC/mem.h\
 	$SRC/filesys.h\
 	$SRC/process.h\
 	$SRC/sys_time.h\
-	$RUNTIME/common.h\
 
 all:V: $LIB test_filesys hello
 
@@ -51,10 +51,10 @@ test_filesys: test_filesys.$O $LIB
 	$LD -o $target test_filesys.$O $LIB
 
 hello.$O: $SRC/hello.c $HFILES
-	$CC $CFLAGS -I$RUNTIME -o $target $SRC/hello.c
+	$CC $CFLAGS -o $target $SRC/hello.c
 
 entry.$O: $RUNTIME/entry.c $HFILES
-	$CC $CFLAGS -I$RUNTIME -I$SRC -o $target $RUNTIME/entry.c
+	$CC $CFLAGS -I$SRC -o $target $RUNTIME/entry.c
 
 hello: hello.$O entry.$O $LIB
 	$LD -o $target hello.$O entry.$O $LIB

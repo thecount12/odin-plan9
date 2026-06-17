@@ -1,5 +1,5 @@
-#include <u.h>
-#include <libc.h>
+#include "common.h"
+#include "sysdeps.h"
 #include "sys_time.h"
 
 ulong
@@ -23,5 +23,8 @@ sys_sleep(int ms)
 ulonglong
 sys_nanotime(void)
 {
-	return (ulonglong)time(0) * (ulonglong)1000000000;
+	uvlong ns;
+
+	ns = (uvlong)time(0) * 1000000000;
+	return sys_ull_from_ptr(&ns);
 }

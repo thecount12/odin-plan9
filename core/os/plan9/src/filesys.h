@@ -1,7 +1,6 @@
 #ifndef FILESYS_H
 #define FILESYS_H
 
-#include "sysdeps.h"
 
 enum {
     ODIN_O_RDONLY = 0x000,

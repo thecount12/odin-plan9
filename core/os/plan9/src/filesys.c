@@ -1,8 +1,7 @@
-#include <u.h>
-#include <libc.h>
+#include "common.h"
+#include "sysdeps.h"
 #include "filesys.h"
 #include "mem.h"
-#include "sysdeps.h"
 
 static int
 odin_to_plan9_mode(int omode)
@@ -171,10 +170,10 @@ sys_stat(char *path, Stat *st)
 	else
 		st->type = ODIN_S_IFREG;
 	st->dev = d->qid.type;
-	st->ino = d->qid.path;
+	st->ino = sys_ull_from_ptr(&d->qid.path);
 	st->mode = d->mode;
 	st->nlink = 1;
-	st->length = d->length;
+	st->length = sys_ull_from_ptr(&d->length);
 	st->atime = d->atime;
 	st->mtime = d->mtime;
 	st->ctime = d->mtime;

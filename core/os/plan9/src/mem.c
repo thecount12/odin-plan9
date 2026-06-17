@@ -1,5 +1,4 @@
-#include <u.h>
-#include <libc.h>
+#include "common.h"
 #include "mem.h"
 
 void *

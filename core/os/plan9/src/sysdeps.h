@@ -1,36 +1,44 @@
 #ifndef SYSDEPS_H
 #define SYSDEPS_H
 
-#include <u.h>
-
-typedef unsigned long ulong;
 typedef unsigned int uint32;
-/* Plan 9 unsigned long is 32-bit even on amd64; use uvlong for 64-bit fields. */
-typedef uvlong ulonglong;
+
+/*
+ * 64-bit unsigned integer without <u.h>.
+ * Layout matches little-endian uvlong (lo = low 32 bits).
+ */
+typedef struct {
+	ulong lo;
+	ulong hi;
+} ulonglong;
 
 enum {
-    ERR_OK = 0,
-    ERR_IO = 5,
-    ERR_NOENT = 2,
-    ERR_PERM = 1
+	ERR_OK = 0,
+	ERR_IO = 5,
+	ERR_NOENT = 2,
+	ERR_PERM = 1
 };
 
 /* Odin-compatible file type bits (POSIX-ish; not Plan 9 DMDIR). */
 enum {
-    ODIN_S_IFREG = 0100000,
-    ODIN_S_IFDIR = 0040000
+	ODIN_S_IFREG = 0100000,
+	ODIN_S_IFDIR = 0040000
 };
 
 typedef int fd_t;
 #define MAX_FD 64
 
 typedef struct Buf {
-    unsigned char *data;
-    long len;
-    long cap;
+	unsigned char *data;
+	long len;
+	long cap;
 } Buf;
 
-extern int errno_;
+ulonglong sys_ull(ulong v);
+ulonglong sys_ull_from_ptr(void *src);
+int sys_ull_eq(ulonglong a, ulonglong b);
+int sys_ull_eq_ulong(ulonglong u, ulong v);
+int sys_ull_snprint(ulonglong u, char *buf, int n);
 
 int sys_err(void);
 void sys_seterr(int err);

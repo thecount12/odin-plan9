@@ -1,8 +1,6 @@
 #ifndef PROCESS_H
 #define PROCESS_H
 
-#include "sysdeps.h"
-
 typedef int pid_t;
 
 pid_t sys_getpid(void);

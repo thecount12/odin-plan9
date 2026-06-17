@@ -1,14 +1,4 @@
 /*
- * Umbrella header for the Odin Plan 9 runtime.
- * Build with -Icore/os/plan9/src and this directory on the include path.
+ * Odin Plan 9 entry point lives here; runtime headers are in core/os/plan9/src/.
+ * Each .c file includes src/common.h (u.h + libc.h), then module headers directly.
  */
-#ifndef ODIN_RUNTIME_COMMON_H
-#define ODIN_RUNTIME_COMMON_H
-
-#include "sysdeps.h"
-#include "mem.h"
-#include "filesys.h"
-#include "process.h"
-#include "sys_time.h"
-
-#endif

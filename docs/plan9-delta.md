@@ -12,15 +12,32 @@ Reference for porting `core/os/posix/` to `core/os/plan9/`.
 | `#include <unistd.h>` | `#include <u.h>` + `#include <libc.h>` |
 | `main()` returns `int` | `void main()` + `exits(nil)` |
 
+## Headers
+
+| POSIX | Plan 9 / 9front |
+|-------|-----------------|
+| many system includes | `src/common.h` only (`<u.h>` + `<libc.h>`) |
+| umbrella headers | none — each `.c` includes module headers directly |
+
+Example `.c` include order:
+
+```c
+#include "common.h"
+#include "sysdeps.h"
+#include "filesys.h"
+```
+
+Do not nest project `#include`s inside other header files.
+
 ## Types
 
 | POSIX / typical C | Plan 9 / 9front |
 |-------------------|-----------------|
-| `uint64_t` / `unsigned long long` | `uvlong` (not `unsigned long`, which is 32-bit) |
-| `int64_t` | `vlong` |
-| `%llu` in `printf` | `%llud` in `print` for `uvlong` |
+| `uint64_t` / `unsigned long long` | `ulonglong` in `sysdeps.h` (`{ulong lo; ulong hi;}`) |
+| `int64_t` | convert via `sys_ull_from_ptr()` in `.c` files |
+| `%llu` in `printf` | `sys_ull_snprint()` + `print("%s", buf)` |
 
-`sysdeps.h` maps `ulonglong` → `uvlong` so `Stat.length` and `Stat.ino` stay 64-bit.
+`ulonglong` is defined without `<u.h>`. `.c` files copy to/from `uvlong` with `sys_ull_from_ptr()` and `memmove` inside `sysdeps.c`.
 
 ## Errors
 

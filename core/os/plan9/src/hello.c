@@ -2,6 +2,9 @@
  * Example generated program for Plan 9 integration testing.
  */
 #include "common.h"
+#include "sysdeps.h"
+#include "mem.h"
+#include "filesys.h"
 
 int
 odin_main(int argc, char **argv)

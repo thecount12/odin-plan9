@@ -1,7 +1,6 @@
 #ifndef MEM_H
 #define MEM_H
 
-#include "sysdeps.h"
 
 void *sys_malloc(ulong size);
 void *sys_calloc(ulong nmemb, ulong size);

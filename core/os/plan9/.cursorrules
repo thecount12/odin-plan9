@@ -1,0 +1,19 @@
+# Odin Plan — Project Rules
+
+## Build Targets
+- **Root**: Plan 9 C (8c/8l), `mk` to build
+
+## Style
+- Plan 9 (root): Plan 9 C style — `nil`, `snprint`, `uchar`, no `extern`
+
+## Headers
+- Plan 9: `<u.h>` and `<libc.h>` live only in `src/common.h`
+- Do not `#include` other project headers from inside header files
+- Each `.c` file: `common.h`, then `sysdeps.h` (if needed), then module headers
+- Use `print` / `fprint`, not `printf`; avoid the `extern` keyword
+
+## Coding
+- C89/C99 for POSIX; Plan 9 C for root
+
+- Registers: AX, BX, BP, SP, SB, FP, PC, R8-R15.
+- Print: Use 'print' or 'fprint' from libc.h, never 'printf'.
