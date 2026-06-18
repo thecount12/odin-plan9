@@ -120,7 +120,7 @@ Status: **complete** on 9front (objtypes 6 and 7).
 - `SysSockAddr` + `sys_sockaddr_in()` helper (no `<netinet/in.h>` in public headers)
 - Plan 9 delta (Phase 13): `dial`, `announce`, `/net/cs`
 
-### Phase 12 — Compiler integration (complete)
+### Phase 12 — Compiler integration (POSIX, complete)
 
 POSIX end-to-end glue (mirrors Plan 9 `hello`):
 
@@ -137,6 +137,28 @@ make integration
 ```
 
 Odin compiler wiring (`odin build -target=posix-c89`) is future work; this proves the link model.
+
+### Phase 14 — Plan 9 compiler integration (complete)
+
+Same link model on 9front:
+
+| Piece | Path |
+|-------|------|
+| Entry `main` | `sys/src/cmd/odin_runtime/plan9/entry.c` |
+| Example `odin_main` | `core/os/plan9/examples/hello/hello.c` |
+| Static library | `libodin_plan9.a` |
+| Link driver | `core/os/plan9/link.rc` → `odin-plan9-link` after `mk install` |
+
+```sh
+cd core/os/plan9
+mk integration
+./hello    # hello from odin plan9
+
+# link compiler-generated objects (when available):
+./link.rc -o myprog generated.$O
+```
+
+LLVM `odin build -target:plan9_*` is future work; objects must be Plan 9 `$O` format from C codegen (`8c`), not LLVM `.o`.
 
 ### Phase 13 — Plan 9 advanced modules (complete)
 

@@ -1,0 +1,48 @@
+#!/bin/rc
+# Link Odin-generated Plan 9 objects into an executable.
+#
+#   link [-o prog] file.$O [more.$O ...]
+#
+# Requires libodin_plan9.a and entry.$O (built by mk in this directory).
+
+rfork e
+
+dir=`{pwd}
+lib=$dir/libodin_plan9.a
+entry=$dir/entry.$O
+out=a.out
+objs=()
+
+if (! ~ -f $entry) {
+	echo link: missing $entry — run mk in $dir >[1=2]
+	exit noentry
+}
+if (! ~ -f $lib) {
+	echo link: missing $lib — run mk in $dir >[1=2]
+	exit nolib
+}
+
+while (! ~ $#* 0) {
+	switch ($1) {
+	case -o
+		if (~ $#* 1) {
+			echo 'link: -o needs a filename' >[1=2]
+			exit usage
+		}
+		out=$2
+		shift
+	case -*
+		echo 'link: unknown option '$1 >[1=2]
+		exit usage
+	case *
+		objs=$objs $1
+	}
+	shift
+}
+
+if (~ $#objs 0) {
+	echo 'usage: link [-o prog] file.'$objtype' [...]' >[1=2]
+	exit usage
+}
+
+exec $LD -o $out $objs $entry $lib

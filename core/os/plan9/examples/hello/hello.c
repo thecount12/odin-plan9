@@ -1,5 +1,6 @@
 /*
- * Example generated program for Plan 9 integration testing.
+ * Example Odin-generated program for Plan 9 integration testing.
+ * Real compiler output will export odin_main() the same way.
  */
 #include "common.h"
 #include "sysdeps.h"

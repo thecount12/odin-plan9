@@ -1,0 +1,17 @@
+# Build Plan 9 entry object for odin link glue.
+# Run on 9front: cd sys/src/cmd/odin_runtime/plan9 && mk
+
+</$objtype/mkfile
+
+CFLAGS=-I../../../../core/os/plan9/src
+
+all:V: entry.$O
+
+entry.$O: entry.c
+	$CC $CFLAGS -o $target entry.c
+
+clean:V:
+	rm -f entry.$O [$O].out
+
+install:V: entry.$O
+	cp entry.$O /$objtype/lib/odin_entry.$O
