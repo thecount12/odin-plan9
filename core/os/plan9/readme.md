@@ -43,7 +43,7 @@ Or compile from C with the build driver:
 
 ```sh
 mk cgen
-./cgen/bin/cgen hello > /tmp/hello.c
+./cgen/cgen hello > /tmp/hello.c
 ./build.rc -o hello /tmp/hello.c
 ```
 
@@ -55,7 +55,7 @@ mk cgen
 | Static library | `libodin_plan9.a` |
 | Link driver | `link.rc` |
 | Build driver | `build.rc` |
-| C codegen | `cgen/bin/cgen` |
+| C codegen | `cgen/cgen` |
 
 See [docs/plan9-codegen.md](../../docs/plan9-codegen.md).
 

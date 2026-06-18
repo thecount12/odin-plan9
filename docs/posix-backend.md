@@ -172,7 +172,7 @@ See [plan9-codegen.md](plan9-codegen.md).
 ```sh
 cd core/os/plan9
 mk cgen
-./cgen/bin/cgen hello > /tmp/hello.c
+./cgen/cgen hello > /tmp/hello.c
 ./build.rc -o hello /tmp/hello.c
 ```
 
