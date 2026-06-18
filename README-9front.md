@@ -25,10 +25,9 @@ When the compiler emits C with `odin_main()`:
 
 ```sh
 cd core/os/plan9
-8c -Isrc -o myprog.$O myprog.c    # generated C
-mk                               # libodin_plan9.a + entry.$O
-./link.rc -o myprog myprog.$O
-./myprog
+8c -Isrc -o myprog.$objtype myprog.c
+mk integration
+./link.rc -o myprog myprog.$objtype
 ```
 
 See [core/os/plan9/readme.md](core/os/plan9/readme.md) and [docs/plan9-delta.md](docs/plan9-delta.md).

@@ -35,11 +35,14 @@ mk integration          # builds lib + hello
 Link your own generated `$O` files:
 
 ```sh
-mk                      # libodin_plan9.a + entry.$O
-./link.rc -o myprog /path/to/generated.$O
+mk integration
+8c -Isrc -o myprog.$objtype examples/hello/hello.c
+./link.rc -o myprog myprog.$objtype
 # or after: mk install
-odin-plan9-link -o myprog /path/to/generated.$O
+odin-plan9-link -o myprog myprog.$objtype
 ```
+
+`$O` is an `mk` variable — in `rc` use `$objtype` (e.g. `7` on arm64, `6` on amd64).
 
 | Piece | Path |
 |-------|------|

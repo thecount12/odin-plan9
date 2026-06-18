@@ -1,20 +1,30 @@
 #!/bin/rc
 # Link Odin-generated Plan 9 objects into an executable.
 #
-#   link [-o prog] file.$O [more.$O ...]
+#   link [-o prog] file.$objtype [more.$objtype ...]
 #
-# Requires libodin_plan9.a and entry.$O (built by mk in this directory).
+# Requires libodin_plan9.a and entry.$objtype (built by mk integration).
+#
+# Example (arm64 / $objtype=7):
+#   8c -Isrc -o myprog.7 examples/hello/hello.c
+#   ./link.rc -o myprog myprog.7
 
 rfork e
 
 dir=`{pwd}
 lib=$dir/libodin_plan9.a
-entry=$dir/entry.$O
 out=a.out
-objs=()
+entry=''
 
-if (! ~ -f $entry) {
-	echo link: missing $entry — run mk in $dir >[1=2]
+for (f in $dir/entry.*) {
+	if (~ -f $f) {
+		entry=$f
+		break
+	}
+}
+
+if (~ $entry '' || ! ~ -f $entry) {
+	echo link: missing entry.* — run mk integration in $dir >[1=2]
 	exit noentry
 }
 if (! ~ -f $lib) {
@@ -22,27 +32,30 @@ if (! ~ -f $lib) {
 	exit nolib
 }
 
-while (! ~ $#* 0) {
-	switch ($1) {
-	case -o
-		if (~ $#* 1) {
+while (~ $#* 0) {
+	if (~ $1 -o) {
+		shift
+		if (~ $#* 0) {
 			echo 'link: -o needs a filename' >[1=2]
 			exit usage
 		}
-		out=$2
+		out=$1
 		shift
-	case -*
-		echo 'link: unknown option '$1 >[1=2]
-		exit usage
-	case *
-		objs=$objs $1
 	}
-	shift
+	if not
+		break
 }
 
-if (~ $#objs 0) {
+if (~ $#* 0) {
 	echo 'usage: link [-o prog] file.'$objtype' [...]' >[1=2]
 	exit usage
 }
 
-exec $LD -o $out $objs $entry $lib
+for (o in $*) {
+	if (! ~ -f $o) {
+		echo link: missing $o >[1=2]
+		exit nofile
+	}
+}
+
+exec $LD -o $out $* $entry $lib
