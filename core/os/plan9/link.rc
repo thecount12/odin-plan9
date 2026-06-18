@@ -19,23 +19,20 @@ cd $dir
 lib=libodin_plan9.a
 out=a.out
 
-while (~ $#* 0) {
-	if (~ $1 -o) {
-		shift
-		if (~ $#* 0) {
-			echo 'link: -o needs a filename' >[1=2]
-			exit usage
-		}
-		out=$1
-		shift
+switch ($1) {
+case -o
+	if (~ $#* '<' 2) {
+		echo 'usage: link [-o prog] file.suffix [...]' >[1=2]
+		exit usage
 	}
-	if not
-		break
-}
-
-if (~ $#* 0) {
-	echo 'usage: link [-o prog] file.suffix [...]' >[1=2]
-	exit usage
+	out=$2
+	shift
+	shift
+case *
+	if (~ $#* 0) {
+		echo 'usage: link [-o prog] file.suffix [...]' >[1=2]
+		exit usage
+	}
 }
 
 suffix=`{echo $1 | sed 's/.*\.//'}
