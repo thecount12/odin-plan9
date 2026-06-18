@@ -30,13 +30,9 @@ case *
 	}
 }
 
-if (! ~ -f $cfile) {
-	echo build: missing $cfile >[1=2]
-	exit nofile
-}
-if (! ~ -f libodin_plan9.a) {
-	echo build: run mk integration first >[1=2]
-	exit nolib
+if (~ $cfile '') {
+	echo build: missing source file >[1=2]
+	exit usage
 }
 
 stem=`{echo $cfile | sed 's/.*\///;s/\.c$//'}
