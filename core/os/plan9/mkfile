@@ -40,7 +40,7 @@ HFILES=\
 
 all:V: $LIB test_filesys test_path test_dir test_env test_mmap test_thread test_net
 
-integration:V: $LIB hello
+integration:V: $LIB entry.$O hello
 
 install:V: $LIB link
 	cp $LIB /$objtype/lib/

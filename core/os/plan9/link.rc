@@ -5,26 +5,35 @@
 #
 # Requires libodin_plan9.a and entry.$objtype (built by mk integration).
 #
-# Example (arm64 / $objtype=7):
-#   8c -Isrc -o myprog.7 examples/hello/hello.c
+# Example on arm64 ($objtype=7, compiler 7c):
+#   7c -Isrc -o myprog.7 examples/hello/hello.c
 #   ./link.rc -o myprog myprog.7
+#   — or reuse an existing object: ./link.rc -o myprog hello.7
 
 rfork e
 
 dir=`{pwd}
-lib=$dir/libodin_plan9.a
+cd $dir
+
+lib=libodin_plan9.a
 out=a.out
 entry=''
 
-for (f in $dir/entry.*) {
-	if (~ -f $f) {
-		entry=$f
-		break
+if (! ~ $objtype '' && ~ -f entry.$objtype)
+	entry=entry.$objtype
+
+if (~ $entry '') {
+	for (f in entry.*) {
+		if (~ -f $f) {
+			entry=$f
+			break
+		}
 	}
 }
 
 if (~ $entry '' || ! ~ -f $entry) {
-	echo link: missing entry.* — run mk integration in $dir >[1=2]
+	echo link: missing entry.$objtype — run mk integration in $dir >[1=2]
+	echo link: looked in $dir for entry.* >[1=2]
 	exit noentry
 }
 if (! ~ -f $lib) {
