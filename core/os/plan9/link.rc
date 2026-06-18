@@ -1,14 +1,15 @@
 #!/bin/rc
 # Link Odin-generated Plan 9 objects into an executable.
 #
-#   link [-o prog] file.$objtype [more.$objtype ...]
+#   link [-o prog] file.N [more.N ...]
 #
-# Requires libodin_plan9.a and entry.$objtype (built by mk integration).
+# The object suffix N (6=amd64, 7=arm64, ...) is taken from the first input
+# file, so entry.N is found even when $objtype is arm64/amd64 not 6/7.
 #
-# Example on arm64 ($objtype=7, compiler 7c):
+# Example on arm64 (7c, objects end in .7):
 #   7c -Isrc -o myprog.7 examples/hello/hello.c
 #   ./link.rc -o myprog myprog.7
-#   — or reuse an existing object: ./link.rc -o myprog hello.7
+#   — or: ./link.rc -o myprog hello.7
 
 rfork e
 
@@ -17,29 +18,6 @@ cd $dir
 
 lib=libodin_plan9.a
 out=a.out
-entry=''
-
-if (! ~ $objtype '' && ~ -f entry.$objtype)
-	entry=entry.$objtype
-
-if (~ $entry '') {
-	for (f in entry.*) {
-		if (~ -f $f) {
-			entry=$f
-			break
-		}
-	}
-}
-
-if (~ $entry '' || ! ~ -f $entry) {
-	echo link: missing entry.$objtype — run mk integration in $dir >[1=2]
-	echo link: looked in $dir for entry.* >[1=2]
-	exit noentry
-}
-if (! ~ -f $lib) {
-	echo link: missing $lib — run mk in $dir >[1=2]
-	exit nolib
-}
 
 while (~ $#* 0) {
 	if (~ $1 -o) {
@@ -56,8 +34,24 @@ while (~ $#* 0) {
 }
 
 if (~ $#* 0) {
-	echo 'usage: link [-o prog] file.'$objtype' [...]' >[1=2]
+	echo 'usage: link [-o prog] file.suffix [...]' >[1=2]
 	exit usage
+}
+
+suffix=`{echo $1 | sed 's/.*\.//'}
+if (~ $suffix $1) {
+	echo link: expected an object file with a suffix, got $1 >[1=2]
+	exit usage
+}
+
+entry=entry.$suffix
+if (! ~ -f $entry) {
+	echo link: missing $entry — run mk integration in $dir >[1=2]
+	exit noentry
+}
+if (! ~ -f $lib) {
+	echo link: missing $lib — run mk in $dir >[1=2]
+	exit nolib
 }
 
 for (o in $*) {

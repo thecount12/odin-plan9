@@ -25,10 +25,12 @@ When the compiler emits C with `odin_main()`:
 
 ```sh
 cd core/os/plan9
-8c -Isrc -o myprog.$objtype myprog.c
+8c -Isrc -o myprog.7 myprog.c          # arm64: 7c / .7; amd64: 6c / .6
 mk integration
-./link.rc -o myprog myprog.$objtype
+./link.rc -o myprog myprog.7
 ```
+
+`link.rc` matches `entry.N` to the object suffix (`hello.7` → `entry.7`).
 
 See [core/os/plan9/readme.md](core/os/plan9/readme.md) and [docs/plan9-delta.md](docs/plan9-delta.md).
 

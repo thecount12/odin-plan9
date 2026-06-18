@@ -36,13 +36,12 @@ Link your own generated `$O` files:
 
 ```sh
 mk integration
-8c -Isrc -o myprog.$objtype examples/hello/hello.c
-./link.rc -o myprog myprog.$objtype
-# or after: mk install
-odin-plan9-link -o myprog myprog.$objtype
+7c -Isrc -o myprog.7 examples/hello/hello.c
+./link.rc -o myprog myprog.7
+# or reuse hello.7: ./link.rc -o myprog hello.7
 ```
 
-`$O` is an `mk` variable — in `rc` use `$objtype` (e.g. `7` on arm64, `6` on amd64).
+`link.rc` picks `entry.N` from the input suffix (`hello.7` → `entry.7`). `$objtype` is the CPU name (`arm64`), not the object suffix (`7`).
 
 | Piece | Path |
 |-------|------|
