@@ -158,7 +158,25 @@ mk integration
 ./link.rc -o myprog generated.$O
 ```
 
-LLVM `odin build -target:plan9_*` is future work; objects must be Plan 9 `$O` format from C codegen (`8c`), not LLVM `.o`.
+### Phase 15 — Plan 9 C codegen (started)
+
+See [plan9-codegen.md](plan9-codegen.md).
+
+| Piece | Path |
+|-------|------|
+| Codegen tool | `core/os/plan9/cgen/` (`cgen hello` → C on stdout) |
+| Build driver | `core/os/plan9/build.rc` |
+| Generated header | `core/os/plan9/include/odin_generated.h` |
+| Odin spec | `core/os/plan9/examples/hello/hello.odin` |
+
+```sh
+cd core/os/plan9
+mk cgen
+./cgen/bin/cgen hello > /tmp/hello.c
+./build.rc -o hello /tmp/hello.c
+```
+
+LLVM `odin build -backend:plan9-c` is milestone M5.
 
 ### Phase 13 — Plan 9 advanced modules (complete)
 

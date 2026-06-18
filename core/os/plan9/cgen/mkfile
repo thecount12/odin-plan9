@@ -1,0 +1,15 @@
+</$objtype/mkfile
+
+CFLAGS=-I../include -I../src
+BIN=../cgen/bin/cgen
+
+all:V: $BIN
+
+../cgen/bin/cgen.$O: emit.c
+	$CC $CFLAGS -o $target emit.c
+
+$BIN: ../cgen/bin/cgen.$O
+	$LD -o $target ../cgen/bin/cgen.$O
+
+clean:V:
+	rm -f ../cgen/bin/cgen.$O [$O].out $BIN

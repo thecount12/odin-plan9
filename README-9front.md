@@ -8,7 +8,8 @@ Porting Odin via a **C89 runtime backend** (`core/os/plan9/`), not LLVM-on-Plan9
 |-------|--------|
 | `libodin_plan9.a` (sysdeps … net) | done, tested on amd64 + arm64 |
 | Integration glue (`entry.c`, `hello`, `link.rc`) | done |
-| Odin compiler C codegen + `odin build -target:plan9_*` | not started |
+| C codegen (`cgen`, `build.rc`) | started |
+| Odin compiler `-backend:plan9-c` | not started |
 
 ## Quick start (9front)
 
@@ -25,12 +26,19 @@ When the compiler emits C with `odin_main()`:
 
 ```sh
 cd core/os/plan9
-8c -Isrc -o myprog.7 myprog.c          # arm64: 7c / .7; amd64: 6c / .6
-mk integration
-./link.rc -o myprog myprog.7
+mk cgen
+./cgen/bin/cgen hello > /tmp/hello.c
+./build.rc -o hello /tmp/hello.c
+./hello
 ```
 
-`link.rc` matches `entry.N` to the object suffix (`hello.7` → `entry.7`).
+Or from checked-in C:
+
+```sh
+./build.rc -o hello examples/hello/hello.c
+```
+
+See [docs/plan9-codegen.md](docs/plan9-codegen.md).
 
 See [core/os/plan9/readme.md](core/os/plan9/readme.md) and [docs/plan9-delta.md](docs/plan9-delta.md).
 

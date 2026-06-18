@@ -1,11 +1,8 @@
 /*
  * Example Odin-generated program for Plan 9 integration testing.
- * Real compiler output will export odin_main() the same way.
+ * Real compiler/cgen output will match this shape.
  */
-#include "common.h"
-#include "sysdeps.h"
-#include "mem.h"
-#include "filesys.h"
+#include "odin_generated.h"
 
 int
 odin_main(int argc, char **argv)

@@ -143,6 +143,7 @@ POSIX reference: `core/os/posix/src/net.c`. Plan 9: `net.c` via `dial`/`announce
 | 8 | path, dir, env + tests | done |
 | 13 | mmap, sys_thread, net + tests | done |
 | 14 | integration glue (entry.c, link.rc, examples/hello) | done |
+| 15 | cgen + build.rc (C emit bootstrap) | started |
 
 See [posix-backend.md](../../docs/posix-backend.md) for the full roadmap.
 

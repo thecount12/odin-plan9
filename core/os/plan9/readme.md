@@ -36,23 +36,28 @@ Link your own generated `$O` files:
 
 ```sh
 mk integration
-7c -Isrc -o myprog.7 examples/hello/hello.c
-./link.rc -o myprog myprog.7
-# or reuse hello.7: ./link.rc -o myprog hello.7
+./link.rc -o myprog hello.7
 ```
 
-`link.rc` picks `entry.N` from the input suffix (`hello.7` → `entry.7`). `$objtype` is the CPU name (`arm64`), not the object suffix (`7`).
+Or compile from C with the build driver:
+
+```sh
+mk cgen
+./cgen/bin/cgen hello > /tmp/hello.c
+./build.rc -o hello /tmp/hello.c
+```
 
 | Piece | Path |
 |-------|------|
 | Entry `main` | `sys/src/cmd/odin_runtime/plan9/entry.c` |
 | Example `odin_main` | `core/os/plan9/examples/hello/hello.c` |
+| Odin spec | `core/os/plan9/examples/hello/hello.odin` |
 | Static library | `libodin_plan9.a` |
-| Link driver | `core/os/plan9/link.rc` |
+| Link driver | `link.rc` |
+| Build driver | `build.rc` |
+| C codegen | `cgen/bin/cgen` |
 
-`odin build -target:plan9_*` in the LLVM compiler is future work; codegen must emit C (or Plan 9 `$O`) plus `odin_main`, not `main`.
-
-See [docs/plan9-delta.md](../../docs/plan9-delta.md) and [docs/posix-backend.md](../../docs/posix-backend.md).
+See [docs/plan9-codegen.md](../../docs/plan9-codegen.md).
 
 ## Status
 
@@ -61,3 +66,4 @@ See [docs/plan9-delta.md](../../docs/plan9-delta.md) and [docs/posix-backend.md]
 | 7–8 | core I/O, path, dir, env | done |
 | 13 | mmap, sys_thread, net | done |
 | 14 | integration glue (`entry.c`, `link.rc`, `examples/hello`) | done |
+| 15 | `cgen` + `build.rc` | started |
