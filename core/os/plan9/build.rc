@@ -15,23 +15,17 @@ cfile=''
 
 switch ($1) {
 case -o
-	if (~ $#* '<' 3) {
-		echo 'usage: build.rc [-o prog] program.c' >[1=2]
-		exit usage
-	}
 	out=$2
-	cfile=$3
-case *
-	if (~ $#* 1)
-		cfile=$1
-	if not {
-		echo 'usage: build.rc [-o prog] program.c' >[1=2]
-		exit usage
-	}
+	shift
+	shift
+	cfile=$1
 }
 
+if (~ $cfile '')
+	cfile=$1
+
 if (~ $cfile '') {
-	echo build: missing source file >[1=2]
+	echo 'usage: build.rc [-o prog] program.c' >[1=2]
 	exit usage
 }
 
