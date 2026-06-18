@@ -22,5 +22,6 @@ case -o
 
 suffix=`{echo $1 | sed 's/.*\.//'}
 entry=entry.$suffix
+ld=$suffix^l
 
-exec $LD -o $out $* $entry $lib
+exec $ld -o $out $* $entry $lib
