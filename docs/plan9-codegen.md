@@ -43,8 +43,8 @@ Runtime glue (done, Phase 14):
 cd core/os/plan9
 mk integration          # lib + entry + link.rc
 mk cgen
-./cgen/cgen hello > /tmp/hello.c
-./build.rc -o hello /tmp/hello.c
+./cgen/cgen hello > hello.c
+./build.rc -o hello hello.c
 ./hello
 ```
 

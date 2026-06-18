@@ -43,8 +43,8 @@ Or compile from C with the build driver:
 
 ```sh
 mk cgen
-./cgen/cgen hello > /tmp/hello.c
-./build.rc -o hello /tmp/hello.c
+./cgen/cgen hello > hello.c
+./build.rc -o hello hello.c
 ```
 
 | Piece | Path |

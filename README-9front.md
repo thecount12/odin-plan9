@@ -27,8 +27,8 @@ When the compiler emits C with `odin_main()`:
 ```sh
 cd core/os/plan9
 mk cgen
-./cgen/cgen hello > /tmp/hello.c
-./build.rc -o hello /tmp/hello.c
+./cgen/cgen hello > hello.c
+./build.rc -o hello hello.c
 ./hello
 ```
 
