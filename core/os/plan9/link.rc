@@ -1,61 +1,26 @@
 #!/bin/rc
-# Link Odin-generated Plan 9 objects into an executable.
+# Link Odin-generated objects: prog.o + entry.o + libodin_plan9.a
 #
 #   link [-o prog] file.N [more.N ...]
 #
-# The object suffix N (6=amd64, 7=arm64, ...) is taken from the first input
-# file, so entry.N is found even when $objtype is arm64/amd64 not 6/7.
-#
-# Example on arm64 (7c, objects end in .7):
-#   7c -Isrc -o myprog.7 examples/hello/hello.c
-#   ./link.rc -o myprog myprog.7
-#   — or: ./link.rc -o myprog hello.7
+# Example:
+#   ./link.rc -o myprog hello.7
+#   → 7l -o myprog hello.7 entry.7 libodin_plan9.a
 
 rfork e
+cd `{pwd}
 
-dir=`{pwd}
-cd $dir
-
-lib=libodin_plan9.a
 out=a.out
+lib=libodin_plan9.a
 
 switch ($1) {
 case -o
-	if (~ $#* '<' 2) {
-		echo 'usage: link [-o prog] file.suffix [...]' >[1=2]
-		exit usage
-	}
 	out=$2
 	shift
 	shift
-case *
-	if (~ $#* 0) {
-		echo 'usage: link [-o prog] file.suffix [...]' >[1=2]
-		exit usage
-	}
 }
 
 suffix=`{echo $1 | sed 's/.*\.//'}
-if (~ $suffix $1) {
-	echo link: expected an object file with a suffix, got $1 >[1=2]
-	exit usage
-}
-
 entry=entry.$suffix
-if (! ~ -f $entry) {
-	echo link: missing $entry — run mk integration in $dir >[1=2]
-	exit noentry
-}
-if (! ~ -f $lib) {
-	echo link: missing $lib — run mk in $dir >[1=2]
-	exit nolib
-}
-
-for (o in $*) {
-	if (! ~ -f $o) {
-		echo link: missing $o >[1=2]
-		exit nofile
-	}
-}
 
 exec $LD -o $out $* $entry $lib
