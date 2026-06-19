@@ -78,6 +78,7 @@ gb_global Timings global_timings = {0};
 #include "bundle_command.cpp"
 
 #include "llvm_backend.cpp"
+#include "c_backend.cpp"
 
 #include "bug_report.cpp"
 
@@ -306,6 +307,7 @@ enum BuildFlagKind {
 	BuildFlag_Collection,
 	BuildFlag_Define,
 	BuildFlag_BuildMode,
+	BuildFlag_Backend,
 	BuildFlag_KeepExecutable,
 	BuildFlag_Target,
 	BuildFlag_Subtarget,
@@ -539,6 +541,7 @@ gb_internal bool parse_build_flags(Array<String> args) {
 	add_flag(&build_flags, BuildFlag_Collection,              str_lit("collection"),                BuildFlagParam_String,  Command__does_check);
 	add_flag(&build_flags, BuildFlag_Define,                  str_lit("define"),                    BuildFlagParam_String,  Command__does_check, true);
 	add_flag(&build_flags, BuildFlag_BuildMode,               str_lit("build-mode"),                BuildFlagParam_String,  Command__does_build); // Commands_build is not used to allow for a better error message
+	add_flag(&build_flags, BuildFlag_Backend,                 str_lit("backend"),                   BuildFlagParam_String,  Command__does_build);
 	add_flag(&build_flags, BuildFlag_KeepExecutable,          str_lit("keep-executable"),           BuildFlagParam_None,    Command__does_build | Command_test);
 	add_flag(&build_flags, BuildFlag_Target,                  str_lit("target"),                    BuildFlagParam_String,  Command__does_check);
 	add_flag(&build_flags, BuildFlag_Subtarget,               str_lit("subtarget"),                 BuildFlagParam_String,  Command__does_check);
@@ -1220,6 +1223,29 @@ gb_internal bool parse_build_flags(Array<String> args) {
 								break;
 							}
 
+							break;
+						}
+						case BuildFlag_Backend: {
+							GB_ASSERT(value.kind == ExactValue_String);
+							String str = value.value_string;
+
+							if (build_context.command != "build") {
+								gb_printf_err("'backend' can only be used with the 'build' command\n");
+								bad_flags = true;
+								break;
+							}
+
+							BackendKind backend = BackendKind_LLVM;
+							if (!parse_backend_kind(str, &backend)) {
+								gb_printf_err("Unknown backend '%.*s'\n", LIT(str));
+								gb_printf_err("Valid backends:\n");
+								gb_printf_err("\tllvm\n");
+								gb_printf_err("\tplan9-c\n");
+								bad_flags = true;
+								break;
+							}
+
+							build_context.backend_kind = backend;
 							break;
 						}
 						case BuildFlag_KeepExecutable:
@@ -2644,6 +2670,12 @@ gb_internal int print_show_help(String const arg0, String command, String option
 				print_usage_line(3, "-build-mode:llvm-ir     Builds as an LLVM IR file.");
 				print_usage_line(3, "-build-mode:llvm        Builds as an LLVM IR file.");
 		}
+		if (print_flag("-backend:<name>")) {
+			print_usage_line(2, "Sets the code generation backend.");
+			print_usage_line(2, "Available options:");
+				print_usage_line(3, "-backend:llvm           Emit LLVM IR and use the normal linker (default).");
+				print_usage_line(3, "-backend:plan9-c        Emit C89 for Plan 9 / 9front (experimental).");
+		}
 	}
 
 	if (check) {
@@ -3892,6 +3924,9 @@ int main(int arg_count, char const **arg_ptr) {
 	}
 
 	init_build_context(selected_target_metrics ? selected_target_metrics->metrics : nullptr, selected_subtarget);
+	if (!cb_validate_build_settings()) {
+		return 1;
+	}
 	// if (build_context.word_size == 4 && build_context.metrics.os != TargetOs_js) {
 	// 	print_usage_line(0, "%.*s 32-bit is not yet supported for this platform", LIT(args[0]));
 	// 	return 1;
@@ -4166,7 +4201,7 @@ int main(int arg_count, char const **arg_ptr) {
 		return 0;
 	}
 
-	if (build_context.cached) {
+	if (build_context.cached && build_context.backend_kind != BackendKind_Plan9_C) {
 		MAIN_TIME_SECTION("check cached build");
 		if (try_cached_build(checker, args)) {
 			goto end_of_code_gen;
@@ -4174,7 +4209,12 @@ int main(int arg_count, char const **arg_ptr) {
 		failed_to_cache_parsing = true;
 	}
 
-	{
+	if (build_context.backend_kind == BackendKind_Plan9_C) {
+		MAIN_TIME_SECTION("Plan 9 C Code Gen");
+		if (!cb_generate_code(checker)) {
+			return 1;
+		}
+	} else {
 		lbGenerator *gen = permanent_alloc_item<lbGenerator>();
 		if (!lb_init_generator(gen, checker)) {
 			return 1;
@@ -4248,22 +4288,28 @@ end_of_code_gen:;
 	}
 
 	if (run_output) {
-		String exe_name = path_to_string(heap_allocator(), build_context.build_paths[BuildPath_Output]);
-		defer (gb_free(heap_allocator(), exe_name.text));
+		if (build_context.backend_kind == BackendKind_Plan9_C) {
+			String output_name = path_to_string(heap_allocator(), build_context.build_paths[BuildPath_Output]);
+			defer (gb_free(heap_allocator(), output_name.text));
+			gb_printf_err("Plan 9 C output written to %.*s — compile on 9front with build.rc\n", LIT(output_name));
+		} else {
+			String exe_name = path_to_string(heap_allocator(), build_context.build_paths[BuildPath_Output]);
+			defer (gb_free(heap_allocator(), exe_name.text));
 
-		system_must_exec_command_line_app("odin run", "\"%.*s\" %.*s", LIT(exe_name), LIT(run_args_string));
+			system_must_exec_command_line_app("odin run", "\"%.*s\" %.*s", LIT(exe_name), LIT(run_args_string));
 
-		if (!build_context.keep_executable) {
-			char const *filename = cast(char const *)exe_name.text;
-			gb_file_remove(filename);
+			if (!build_context.keep_executable) {
+				char const *filename = cast(char const *)exe_name.text;
+				gb_file_remove(filename);
 
-			if (build_context.ODIN_DEBUG) {
-				if (build_context.metrics.os == TargetOs_windows || build_context.metrics.os == TargetOs_darwin) {
-					String symbol_path = path_to_string(heap_allocator(), build_context.build_paths[BuildPath_Symbols]);
-					defer (gb_free(heap_allocator(), symbol_path.text));
+				if (build_context.ODIN_DEBUG) {
+					if (build_context.metrics.os == TargetOs_windows || build_context.metrics.os == TargetOs_darwin) {
+						String symbol_path = path_to_string(heap_allocator(), build_context.build_paths[BuildPath_Symbols]);
+						defer (gb_free(heap_allocator(), symbol_path.text));
 
-					filename = cast(char const *)symbol_path.text;
-					gb_file_remove(filename);
+						filename = cast(char const *)symbol_path.text;
+						gb_file_remove(filename);
+					}
 				}
 			}
 		}

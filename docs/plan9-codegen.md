@@ -32,18 +32,22 @@ Runtime glue (done, Phase 14):
 |-----------|-------|--------|
 | M0 | Manual `examples/hello/hello.c` + `mk integration` | done |
 | M1 | `build.rc` driver (`.c` → `$O` → link) | done |
-| M2 | `cgen` tool: emit hello.c from template | done |
-| M3 | `cgen`: expressions, calls, strings | pending |
-| M4 | `cgen`: read Odin subset / IR | pending |
-| M5 | Odin compiler `-backend:plan9-c` | pending |
+| M2 | `cgen` tool: emit hello.c from template | done (bootstrap) |
+| M3 | `cgen`: expressions, calls, strings | superseded by compiler backend |
+| M4 | `cgen`: read Odin subset / IR | in progress (`-backend:plan9-c`) |
+| M5 | Odin compiler `-backend:plan9-c` | started (5a done, 5b hello subset) |
 
 ## On 9front
 
 ```sh
 cd core/os/plan9
 mk integration          # lib + entry + link.rc
-mk cgen
-./cgen/cgen hello > hello.c
+mk cgen                 # optional bootstrap tool
+
+# On Mac (after ./build_odin.sh):
+odin build examples/hello/hello.odin -file -backend:plan9-c -out:hello.c
+
+# On 9front:
 ./build.rc -o hello hello.c
 ./hello
 ```

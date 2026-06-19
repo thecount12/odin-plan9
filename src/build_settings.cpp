@@ -207,6 +207,18 @@ enum BuildModeKind {
 	BuildMode_COUNT,
 };
 
+enum BackendKind {
+	BackendKind_LLVM,
+	BackendKind_Plan9_C,
+
+	BackendKind_COUNT,
+};
+
+gb_global String backend_kind_names[BackendKind_COUNT] = {
+	str_lit("llvm"),
+	str_lit("plan9-c"),
+};
+
 enum CommandKind : u64 {
 	Command_run             = 1<<0,
 	Command_build           = 1<<1,
@@ -367,6 +379,18 @@ enum OptInFeatureFlags : u64 {
 	OptInFeatureFlag_UsingStmt       = 1u<<7,
 };
 
+gb_internal bool parse_backend_kind(String str, BackendKind *out) {
+	if (str == "llvm") {
+		*out = BackendKind_LLVM;
+		return true;
+	}
+	if (str == "plan9-c" || str == "plan9_c" || str == "plan9c") {
+		*out = BackendKind_Plan9_C;
+		return true;
+	}
+	return false;
+}
+
 u64 get_feature_flag_from_name(String const &name) {
 	if (name == "dynamic-literals") {
 		return OptInFeatureFlag_DynamicLiterals;
@@ -507,6 +531,7 @@ struct BuildContext {
 	String extra_assembler_flags;
 	String microarch;
 	BuildModeKind build_mode;
+	BackendKind backend_kind;
 	bool   keep_executable;
 	bool   generate_docs;
 	bool   custom_optimization_level;
@@ -2052,6 +2077,10 @@ gb_internal void init_build_context(TargetMetrics *cross_target, Subtarget subta
 			gb_printf_err("-lto:thin is incompatible with -build-mode:asm and -build-mode:llvm-ir\n");
 			gb_exit(1);
 		}
+		if (bc->backend_kind == BackendKind_Plan9_C) {
+			gb_printf_err("-lto is incompatible with -backend:plan9-c\n");
+			gb_exit(1);
+		}
 #if defined(GB_SYSTEM_WINDOWS)
 		if (bc->linker_choice != Linker_lld) {
 			gb_printf_err("-lto:thin on Windows requires -linker:lld\n");
@@ -2324,23 +2353,27 @@ gb_internal bool init_build_paths(String init_filename) {
 	} else if (is_arch_wasm()) {
 		output_extension = STR_LIT("wasm");
 	} else if (build_context.build_mode == BuildMode_Executable) {
-		// By default use no executable extension.
-		output_extension = make_string(nullptr, 0);
-		String const single_file_extension = str_lit(".odin");
+		if (bc->backend_kind == BackendKind_Plan9_C) {
+			output_extension = STR_LIT("c");
+		} else {
+			// By default use no executable extension.
+			output_extension = make_string(nullptr, 0);
+			String const single_file_extension = str_lit(".odin");
 
-		if (selected_subtarget == Subtarget_Android) {
-			// NOTE(bill): It's always shared!
-			output_extension = STR_LIT("so");
-		} else if (build_context.metrics.os == TargetOs_windows) {
-			output_extension = STR_LIT("exe");
-		} else if (path_is_directory(last_path_element(bc->build_paths[BuildPath_Main_Package].basename))) {
-			// Add .bin extension to avoid collision
-			// with package directory name
-			output_extension = STR_LIT("bin");
-		} else if (string_ends_with(init_filename, single_file_extension) && path_is_directory(remove_extension_from_path(init_filename))) {
-			// Add bin extension if compiling single-file package
-			// with same output name as a directory
-			output_extension = STR_LIT("bin");
+			if (selected_subtarget == Subtarget_Android) {
+				// NOTE(bill): It's always shared!
+				output_extension = STR_LIT("so");
+			} else if (build_context.metrics.os == TargetOs_windows) {
+				output_extension = STR_LIT("exe");
+			} else if (path_is_directory(last_path_element(bc->build_paths[BuildPath_Main_Package].basename))) {
+				// Add .bin extension to avoid collision
+				// with package directory name
+				output_extension = STR_LIT("bin");
+			} else if (string_ends_with(init_filename, single_file_extension) && path_is_directory(remove_extension_from_path(init_filename))) {
+				// Add bin extension if compiling single-file package
+				// with same output name as a directory
+				output_extension = STR_LIT("bin");
+			}
 		}
 	} else if (build_context.build_mode == BuildMode_DynamicLibrary) {
 		// By default use a .so shared library extension.

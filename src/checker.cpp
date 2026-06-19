@@ -1218,6 +1218,17 @@ gb_internal void init_universal(void) {
 	}
 
 	{
+		GlobalEnumValue values[BackendKind_COUNT] = {
+			{"LLVM",    BackendKind_LLVM},
+			{"Plan9_C", BackendKind_Plan9_C},
+		};
+
+		auto fields = add_global_enum_type(str_lit("Odin_Backend_Type"), values, gb_count_of(values));
+		add_global_enum_constant(fields, "ODIN_BACKEND", bc->backend_kind);
+		add_global_string_constant("ODIN_BACKEND_STRING", backend_kind_names[bc->backend_kind]);
+	}
+
+	{
 		GlobalEnumValue values[TargetEndian_COUNT] = {
 			{"Little",  TargetEndian_Little},
 			{"Big",     TargetEndian_Big},
