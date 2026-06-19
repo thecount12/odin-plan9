@@ -87,6 +87,18 @@ gb_internal bool cb_type_to_c(cbGen *g, Type *type, gbString *out) {
 	return true;
 }
 
+gb_internal void cb_emit_c_var(cbGen *g, Type *type, String name) {
+	gbString type_c = gb_string_make(temporary_allocator(), "");
+	if (!cb_type_to_c(g, type, &type_c)) {
+		return;
+	}
+	if (is_type_cstring(type) || is_type_string(type)) {
+		gb_fprintf(g->f, "%s *%.*s", type_c, LIT(name));
+	} else {
+		gb_fprintf(g->f, "%s %.*s", type_c, LIT(name));
+	}
+}
+
 gb_internal String cb_entity_link_name(Entity *e) {
 	if (e == nullptr) {
 		return str_lit("");
@@ -225,11 +237,8 @@ gb_internal void cb_emit_value_decl_decls(cbGen *g, Ast *stmt, int indent) {
 		}
 
 		cb_indent(g, indent);
-		if (is_type_cstring(type) || is_type_string(type)) {
-			gb_fprintf(g->f, "%s *%.*s;\n", type_c, LIT(name->Ident.token.string));
-		} else {
-			gb_fprintf(g->f, "%s %.*s;\n", type_c, LIT(name->Ident.token.string));
-		}
+		cb_emit_c_var(g, type, name->Ident.token.string);
+		gb_fprintf(g->f, ";\n");
 	}
 }
 
@@ -334,11 +343,7 @@ gb_internal void cb_emit_foreign_proc_decl(cbGen *g, Entity *e) {
 			if (i > 0) {
 				gb_fprintf(g->f, ", ");
 			}
-			gbString param_c = gb_string_make(temporary_allocator(), "");
-			if (!cb_type_to_c(g, param->type, &param_c)) {
-				return;
-			}
-			gb_fprintf(g->f, "%s %.*s", param_c, LIT(param->token.string));
+			cb_emit_c_var(g, param->type, param->token.string);
 		}
 	}
 	gb_fprintf(g->f, ");\n");
@@ -352,7 +357,7 @@ gb_internal void cb_emit_foreign_decls(cbGen *g) {
 }
 
 gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
-	CheckerInfo *info = checker->info;
+	CheckerInfo *info = &checker->info;
 	Entity *entry_point = info->entry_point;
 
 	if (!build_context.no_entry_point && entry_point == nullptr) {
