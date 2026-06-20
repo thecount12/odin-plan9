@@ -64,6 +64,7 @@ Or from checked-in C:
 ## Generated C rules
 
 - Export **`odin_main(int argc, char **argv)`**, not `main`.
+- User `main :: proc()` is emitted as **`odin_user_main`** — `entry.c` owns Plan 9 `main`.
 - Include `odin_generated.h` (pulls in `sys_*` headers).
 - Do not redeclare `sys_*` in generated C — they come from the runtime headers.
 - C89 only: `/* */` comments, declarations at block start, no `//` in headers.

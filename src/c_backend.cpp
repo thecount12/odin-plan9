@@ -9,6 +9,8 @@ struct cbGen {
 	PtrSet<Type *> emitted_type_defs;
 };
 
+#define CB_ODIN_USER_MAIN_NAME "odin_user_main"
+
 #define CB_FAIL(g, ...) do { \
 	gb_printf_err(__VA_ARGS__); \
 	(g)->failed = true; \
@@ -1018,7 +1020,11 @@ gb_internal void cb_emit_proc(cbGen *g, Entity *entity, bool allow_entry_point) 
 	}
 
 	gb_fprintf(g->f, "%s\n", ret_c);
-	gb_fprintf(g->f, "%.*s(", LIT(entity->token.string));
+	if (allow_entry_point && entity == g->checker->info.entry_point) {
+		gb_fprintf(g->f, "%s(", CB_ODIN_USER_MAIN_NAME);
+	} else {
+		gb_fprintf(g->f, "%.*s(", LIT(entity->token.string));
+	}
 	if (pt->params != nullptr) {
 		for (isize i = 0; i < pt->param_count; i++) {
 			if (i > 0) {
@@ -1257,11 +1263,6 @@ gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
 	cb_emit_runtime_glue(g, checker);
 	cb_emit_package_procs(g, checker, true);
 
-	String entry_name = str_lit("main");
-	if (entry_point != nullptr) {
-		entry_name = entry_point->token.string;
-	}
-
 	gb_fprintf(g->f, "int\n");
 	gb_fprintf(g->f, "odin_main(int argc, char **argv)\n");
 	gb_fprintf(g->f, "{\n");
@@ -1279,7 +1280,7 @@ gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
 			if (type != nullptr && type->kind == Type_Proc) {
 				TypeProc *pt = &type->Proc;
 				if (pt->param_count == 0) {
-					gb_fprintf(g->f, "\t%.*s();\n", LIT(entry_name));
+					gb_fprintf(g->f, "\t%s();\n", CB_ODIN_USER_MAIN_NAME);
 				} else {
 					/* Inline entry body when it takes parameters (unusual). */
 					ast_node(pl, ProcLit, decl->proc_lit);
