@@ -1,6 +1,10 @@
 #ifndef SYSDEPS_H
 #define SYSDEPS_H
 
+#ifndef USED
+#define USED(x) (void)(x)
+#endif
+
 typedef unsigned int uint32;
 
 /*

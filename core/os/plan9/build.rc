@@ -47,6 +47,7 @@ if (~ $cc '')
 
 obj=$stem.$suffix
 
+rm -f $obj
 $cc -Iinclude -Isrc -o $obj $cfile
 if (! ~ $status '') {
 	echo build: compile failed >[1=2]

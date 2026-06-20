@@ -653,10 +653,36 @@ gb_internal void cb_emit_value_decl_inits(cbGen *g, Ast *stmt, int indent) {
 	}
 }
 
-gb_internal void cb_emit_init_decls(cbGen *g, Ast *init, int indent) {
+gb_internal void cb_hoist_value_decl(cbGen *g, Ast *init, int indent) {
 	if (init != nullptr && init->kind == Ast_ValueDecl) {
 		cb_emit_value_decl_decls(g, init, indent);
 	}
+}
+
+gb_internal void cb_hoist_block_decls(cbGen *g, Ast *block, int indent) {
+	if (block == nullptr || block->kind != Ast_BlockStmt) {
+		return;
+	}
+	ast_node(bs, BlockStmt, block);
+
+	for (Ast *stmt : bs->stmts) {
+		switch (stmt->kind) {
+		case Ast_ValueDecl:
+			cb_emit_value_decl_decls(g, stmt, indent);
+			break;
+		case Ast_IfStmt:
+			cb_hoist_value_decl(g, stmt->IfStmt.init, indent);
+			break;
+		case Ast_ForStmt:
+			cb_hoist_value_decl(g, stmt->ForStmt.init, indent);
+			break;
+		}
+	}
+}
+
+gb_internal void cb_emit_init_decls(cbGen *g, Ast *init, int indent) {
+	/* Declarations are hoisted to block start for C89 (Plan 9). */
+	(void)g; (void)init; (void)indent;
 }
 
 gb_internal void cb_emit_init_expr(cbGen *g, Ast *init, int indent) {
@@ -767,7 +793,6 @@ gb_internal void cb_emit_else(cbGen *g, Ast *else_stmt, int indent) {
 gb_internal void cb_emit_if_stmt(cbGen *g, Ast *stmt, int indent) {
 	ast_node(is, IfStmt, stmt);
 
-	cb_emit_init_decls(g, is->init, indent);
 	cb_emit_init_expr(g, is->init, indent);
 
 	cb_indent(g, indent);
@@ -788,8 +813,6 @@ gb_internal void cb_emit_if_stmt(cbGen *g, Ast *stmt, int indent) {
 
 gb_internal void cb_emit_for_stmt(cbGen *g, Ast *stmt, int indent) {
 	ast_node(fs, ForStmt, stmt);
-
-	cb_emit_init_decls(g, fs->init, indent);
 
 	cb_indent(g, indent);
 	gb_fprintf(g->f, "for (");
@@ -965,11 +988,7 @@ gb_internal void cb_emit_block(cbGen *g, Ast *block, int indent) {
 	}
 	ast_node(bs, BlockStmt, block);
 
-	for (Ast *stmt : bs->stmts) {
-		if (stmt->kind == Ast_ValueDecl) {
-			cb_emit_value_decl_decls(g, stmt, indent);
-		}
-	}
+	cb_hoist_block_decls(g, block, indent);
 
 	for (Ast *stmt : bs->stmts) {
 		if (stmt->kind == Ast_ValueDecl) {
@@ -1019,13 +1038,17 @@ gb_internal void cb_emit_proc(cbGen *g, Entity *entity, bool allow_entry_point) 
 		}
 	}
 
-	gb_fprintf(g->f, "%s\n", ret_c);
+	if (allow_entry_point && entity == g->checker->info.entry_point) {
+		gb_fprintf(g->f, "static %s\n", ret_c);
+	} else {
+		gb_fprintf(g->f, "%s\n", ret_c);
+	}
 	if (allow_entry_point && entity == g->checker->info.entry_point) {
 		gb_fprintf(g->f, "%s(", CB_ODIN_USER_MAIN_NAME);
 	} else {
 		gb_fprintf(g->f, "%.*s(", LIT(entity->token.string));
 	}
-	if (pt->params != nullptr) {
+	if (pt->param_count > 0 && pt->params != nullptr) {
 		for (isize i = 0; i < pt->param_count; i++) {
 			if (i > 0) {
 				gb_fprintf(g->f, ", ");
@@ -1033,6 +1056,8 @@ gb_internal void cb_emit_proc(cbGen *g, Entity *entity, bool allow_entry_point) 
 			Entity *param = pt->params->Tuple.variables[i];
 			cb_emit_c_var(g, param->type, param->token.string);
 		}
+	} else {
+		gb_fprintf(g->f, "void");
 	}
 	gb_fprintf(g->f, ")\n");
 	gb_fprintf(g->f, "{\n");
@@ -1261,6 +1286,9 @@ gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
 	cb_emit_foreign_decls(g);
 	cb_emit_all_type_defs(g, checker);
 	cb_emit_runtime_glue(g, checker);
+	if (entry_point != nullptr) {
+		gb_fprintf(g->f, "static void %s(void);\n\n", CB_ODIN_USER_MAIN_NAME);
+	}
 	cb_emit_package_procs(g, checker, true);
 
 	gb_fprintf(g->f, "int\n");

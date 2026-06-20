@@ -14,6 +14,8 @@ struct odin_string {
 	long len;
 };
 
+static void odin_user_main(void);
+
 void
 write_cstr(char *s)
 {
@@ -27,11 +29,12 @@ point_sum(odin_Point p)
 	return (p.x + p.y);
 }
 
-void
-main()
+static void
+odin_user_main(void)
 {
 	odin_Point p;
 	int n;
+	int i;
 	p.x = 1;
 	p.y = 2;
 	n = 0;
@@ -49,7 +52,6 @@ main()
 	if ((n == 1)) {
 		write_cstr("hello adv plan9\n");
 	}
-	int i;
 	for (i = 0; (i < 2); i += 1) {
 		write_cstr("!\n");
 	}
@@ -61,6 +63,6 @@ odin_main(int argc, char **argv)
 {
 	USED(argc);
 	USED(argv);
-	main();
+	odin_user_main();
 	return 0;
 }
