@@ -2,16 +2,30 @@
 /* entry point: main (package main) */
 #include "odin_generated.h"
 
-extern int sys_strlen(char *s);
-extern int sys_write(int fd, unsigned char* buf, int count);
+void
+write_cstr(char *s)
+{
+	sys_write(1, (unsigned char*)s, sys_strlen(s));
+	return;
+}
 
 int
 odin_main(int argc, char **argv)
 {
 	USED(argc);
 	USED(argv);
-	char *msg;
-	msg = "hello from odin plan9\n";
-	sys_write(1, (unsigned char*)msg, sys_strlen(msg));
+	char *hello;
+	char *extra;
+	int n;
+	hello = "hello from odin plan9\n";
+	extra = "!\n";
+	n = sys_strlen(hello);
+	if ((n > 0)) {
+		write_cstr(hello);
+	}
+	int i;
+	for (i = 0; (i < 1); i += 1) {
+		write_cstr(extra);
+	}
 	return 0;
 }

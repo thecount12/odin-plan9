@@ -8,7 +8,20 @@ foreign {
 	sys_strlen :: proc(s: cstring) -> int ---
 }
 
+write_cstr :: proc(s: cstring) {
+	sys_write(1, cast(^u8)s, sys_strlen(s))
+}
+
 main :: proc() {
-	msg: cstring = "hello from odin plan9\n"
-	sys_write(1, cast(^u8)msg, sys_strlen(msg))
+	hello: cstring = "hello from odin plan9\n"
+	extra: cstring = "!\n"
+	n: int = sys_strlen(hello)
+
+	if n > 0 {
+		write_cstr(hello)
+	}
+
+	for i := 0; i < 1; i += 1 {
+		write_cstr(extra)
+	}
 }

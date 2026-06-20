@@ -115,6 +115,11 @@ gb_internal void cb_note_foreign_proc(cbGen *g, Entity *e) {
 	}
 }
 
+gb_internal bool cb_is_runtime_foreign(String name) {
+	/* Declared in odin_generated.h via libodin_plan9 headers. */
+	return string_starts_with(name, str_lit("sys_"));
+}
+
 gb_internal void cb_emit_escaped_c_string(cbGen *g, String s) {
 	gb_fprintf(g->f, "\"");
 	for (isize i = 0; i < s.len; i++) {
@@ -138,6 +143,26 @@ gb_internal void cb_emit_escaped_c_string(cbGen *g, String s) {
 }
 
 gb_internal void cb_emit_expr(cbGen *g, Ast *expr);
+gb_internal void cb_emit_stmt(cbGen *g, Ast *stmt, int indent);
+gb_internal void cb_emit_block(cbGen *g, Ast *block, int indent);
+
+gb_internal bool cb_token_to_c_op(TokenKind kind, String *out) {
+	switch (kind) {
+	case Token_Add: case Token_Sub: case Token_Mul: case Token_Quo: case Token_Mod:
+	case Token_And: case Token_Or: case Token_Xor: case Token_AndNot:
+	case Token_Shl: case Token_Shr:
+	case Token_CmpAnd: case Token_CmpOr:
+	case Token_CmpEq: case Token_NotEq:
+	case Token_Lt: case Token_Gt: case Token_LtEq: case Token_GtEq:
+	case Token_AddEq: case Token_SubEq: case Token_MulEq: case Token_QuoEq: case Token_ModEq:
+	case Token_AndEq: case Token_OrEq: case Token_XorEq: case Token_AndNotEq:
+	case Token_ShlEq: case Token_ShrEq:
+		*out = token_strings[kind];
+		return true;
+	default:
+		return false;
+	}
+}
 
 gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 	ast_node(ce, CallExpr, expr);
@@ -150,7 +175,10 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 		return;
 	}
 
-	cb_note_foreign_proc(g, proc);
+	if (proc->Procedure.is_foreign) {
+		cb_note_foreign_proc(g, proc);
+	}
+
 	String name = cb_entity_link_name(proc);
 	gb_fprintf(g->f, "%.*s(", LIT(name));
 	for (isize i = 0; i < ce->args.count; i++) {
@@ -192,13 +220,40 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 		gb_fprintf(g->f, "%.*s", LIT(id->token.string));
 	case_end;
 
+	case_ast_node(be, BinaryExpr, expr);
+		gb_fprintf(g->f, "(");
+		cb_emit_expr(g, be->left);
+		gb_fprintf(g->f, " %.*s ", LIT(be->op.string));
+		cb_emit_expr(g, be->right);
+		gb_fprintf(g->f, ")");
+	case_end;
+
+	case_ast_node(ue, UnaryExpr, expr);
+		switch (ue->op.kind) {
+		case Token_Sub:
+		case Token_Not:
+		case Token_Xor:
+			gb_fprintf(g->f, "%.*s", LIT(ue->op.string));
+			cb_emit_expr(g, ue->expr);
+			break;
+		case Token_And:
+			gb_fprintf(g->f, "&");
+			cb_emit_expr(g, ue->expr);
+			break;
+		default:
+			CB_FAIL(g, "Plan 9 C backend: unsupported unary operator\n");
+			break;
+		}
+	case_end;
+
 	case_ast_node(ce, CallExpr, expr);
 		cb_emit_call_expr(g, expr);
 	case_end;
 
 	case_ast_node(tc, TypeCast, expr);
 		gbString type_c = gb_string_make(temporary_allocator(), "");
-		if (!cb_type_to_c(g, type_of_expr(tc->type), &type_c)) {
+		Type *cast_type = type_of_expr(tc->type);
+		if (!cb_type_to_c(g, cast_type, &type_c)) {
 			return;
 		}
 		gb_fprintf(g->f, "(%s)", type_c);
@@ -209,6 +264,15 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 		CB_FAIL(g, "Plan 9 C backend: unsupported expression %.*s\n", LIT(ast_strings[expr->kind]));
 		break;
 	}
+}
+
+gb_internal void cb_emit_assign_lhs(cbGen *g, Ast *lhs) {
+	lhs = unparen_expr(lhs);
+	if (lhs->kind == Ast_Ident) {
+		gb_fprintf(g->f, "%.*s", LIT(lhs->Ident.token.string));
+		return;
+	}
+	CB_FAIL(g, "Plan 9 C backend: unsupported assignment target\n");
 }
 
 gb_internal void cb_emit_value_decl_decls(cbGen *g, Ast *stmt, int indent) {
@@ -228,11 +292,6 @@ gb_internal void cb_emit_value_decl_decls(cbGen *g, Ast *stmt, int indent) {
 		}
 		if (type == nullptr) {
 			CB_FAIL(g, "Plan 9 C backend: could not determine type for %.*s\n", LIT(name->Ident.token.string));
-			return;
-		}
-
-		gbString type_c = gb_string_make(temporary_allocator(), "");
-		if (!cb_type_to_c(g, type, &type_c)) {
 			return;
 		}
 
@@ -259,7 +318,258 @@ gb_internal void cb_emit_value_decl_inits(cbGen *g, Ast *stmt, int indent) {
 	}
 }
 
-gb_internal void cb_emit_stmt(cbGen *g, Ast *stmt, int indent);
+gb_internal void cb_emit_init_decls(cbGen *g, Ast *init, int indent) {
+	if (init != nullptr && init->kind == Ast_ValueDecl) {
+		cb_emit_value_decl_decls(g, init, indent);
+	}
+}
+
+gb_internal void cb_emit_init_expr(cbGen *g, Ast *init, int indent) {
+	if (init == nullptr) {
+		return;
+	}
+	switch (init->kind) {
+	case Ast_ValueDecl:
+		cb_emit_value_decl_inits(g, init, indent);
+		break;
+	case Ast_AssignStmt:
+		cb_indent(g, indent);
+		cb_emit_assign_lhs(g, init->AssignStmt.lhs[0]);
+		if (init->AssignStmt.op.kind == Token_Eq) {
+			gb_fprintf(g->f, " = ");
+			cb_emit_expr(g, init->AssignStmt.rhs[0]);
+		} else {
+			String op = {};
+			if (!cb_token_to_c_op(init->AssignStmt.op.kind, &op)) {
+				CB_FAIL(g, "Plan 9 C backend: unsupported assign operator\n");
+				return;
+			}
+			gb_fprintf(g->f, " %.*s ", LIT(op));
+			cb_emit_expr(g, init->AssignStmt.rhs[0]);
+		}
+		gb_fprintf(g->f, ";\n");
+		break;
+	case Ast_ExprStmt:
+		cb_indent(g, indent);
+		cb_emit_expr(g, init->ExprStmt.expr);
+		gb_fprintf(g->f, ";\n");
+		break;
+	default:
+		CB_FAIL(g, "Plan 9 C backend: unsupported init statement %.*s\n", LIT(ast_strings[init->kind]));
+		break;
+	}
+}
+
+gb_internal void cb_emit_for_init_expr_only(cbGen *g, Ast *init) {
+	if (init == nullptr) {
+		return;
+	}
+	switch (init->kind) {
+	case Ast_ValueDecl:
+		if (init->ValueDecl.values.count > 0 && init->ValueDecl.values[0] != nullptr) {
+			Ast *name = init->ValueDecl.names[0];
+			if (name->kind == Ast_Ident) {
+				gb_fprintf(g->f, "%.*s = ", LIT(name->Ident.token.string));
+				cb_emit_expr(g, init->ValueDecl.values[0]);
+			}
+		}
+		break;
+	case Ast_AssignStmt:
+		cb_emit_assign_lhs(g, init->AssignStmt.lhs[0]);
+		if (init->AssignStmt.op.kind == Token_Eq) {
+			gb_fprintf(g->f, " = ");
+			cb_emit_expr(g, init->AssignStmt.rhs[0]);
+		} else {
+			String op = {};
+			if (!cb_token_to_c_op(init->AssignStmt.op.kind, &op)) {
+				CB_FAIL(g, "Plan 9 C backend: unsupported for-init operator\n");
+				return;
+			}
+			gb_fprintf(g->f, " %.*s ", LIT(op));
+			cb_emit_expr(g, init->AssignStmt.rhs[0]);
+		}
+		break;
+	case Ast_ExprStmt:
+		cb_emit_expr(g, init->ExprStmt.expr);
+		break;
+	default:
+		CB_FAIL(g, "Plan 9 C backend: unsupported for-init %.*s\n", LIT(ast_strings[init->kind]));
+		break;
+	}
+}
+
+gb_internal void cb_emit_else(cbGen *g, Ast *else_stmt, int indent) {
+	if (else_stmt == nullptr) {
+		return;
+	}
+	if (else_stmt->kind == Ast_IfStmt && else_stmt->IfStmt.init == nullptr) {
+		ast_node(is, IfStmt, else_stmt);
+		cb_indent(g, indent);
+		gb_fprintf(g->f, "else if (");
+		cb_emit_expr(g, is->cond);
+		gb_fprintf(g->f, ") {\n");
+		if (is->body->kind == Ast_BlockStmt) {
+			cb_emit_block(g, is->body, indent+1);
+		} else {
+			cb_emit_stmt(g, is->body, indent+1);
+		}
+		cb_indent(g, indent);
+		gb_fprintf(g->f, "}\n");
+		cb_emit_else(g, is->else_stmt, indent);
+		return;
+	}
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "else {\n");
+	if (else_stmt->kind == Ast_BlockStmt) {
+		cb_emit_block(g, else_stmt, indent+1);
+	} else {
+		cb_emit_stmt(g, else_stmt, indent+1);
+	}
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "}\n");
+}
+
+gb_internal void cb_emit_if_stmt(cbGen *g, Ast *stmt, int indent) {
+	ast_node(is, IfStmt, stmt);
+
+	cb_emit_init_decls(g, is->init, indent);
+	cb_emit_init_expr(g, is->init, indent);
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "if (");
+	cb_emit_expr(g, is->cond);
+	gb_fprintf(g->f, ") {\n");
+
+	if (is->body->kind == Ast_BlockStmt) {
+		cb_emit_block(g, is->body, indent+1);
+	} else {
+		cb_emit_stmt(g, is->body, indent+1);
+	}
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "}\n");
+	cb_emit_else(g, is->else_stmt, indent);
+}
+
+gb_internal void cb_emit_for_stmt(cbGen *g, Ast *stmt, int indent) {
+	ast_node(fs, ForStmt, stmt);
+
+	cb_emit_init_decls(g, fs->init, indent);
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "for (");
+	cb_emit_for_init_expr_only(g, fs->init);
+	gb_fprintf(g->f, "; ");
+	if (fs->cond != nullptr) {
+		cb_emit_expr(g, fs->cond);
+	}
+	gb_fprintf(g->f, "; ");
+	if (fs->post != nullptr) {
+		switch (fs->post->kind) {
+		case Ast_AssignStmt:
+			cb_emit_assign_lhs(g, fs->post->AssignStmt.lhs[0]);
+			if (fs->post->AssignStmt.op.kind == Token_Eq) {
+				gb_fprintf(g->f, " = ");
+				cb_emit_expr(g, fs->post->AssignStmt.rhs[0]);
+			} else {
+				String op = {};
+				if (!cb_token_to_c_op(fs->post->AssignStmt.op.kind, &op)) {
+					CB_FAIL(g, "Plan 9 C backend: unsupported for-post operator\n");
+					return;
+				}
+				gb_fprintf(g->f, " %.*s ", LIT(op));
+				cb_emit_expr(g, fs->post->AssignStmt.rhs[0]);
+			}
+			break;
+		case Ast_ExprStmt:
+			cb_emit_expr(g, fs->post->ExprStmt.expr);
+			break;
+		default:
+			CB_FAIL(g, "Plan 9 C backend: unsupported for-post %.*s\n", LIT(ast_strings[fs->post->kind]));
+			return;
+		}
+	}
+	gb_fprintf(g->f, ") {\n");
+
+	if (fs->body->kind == Ast_BlockStmt) {
+		cb_emit_block(g, fs->body, indent+1);
+	} else {
+		cb_emit_stmt(g, fs->body, indent+1);
+	}
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "}\n");
+}
+
+gb_internal void cb_emit_stmt(cbGen *g, Ast *stmt, int indent) {
+	if (g->failed || stmt == nullptr) {
+		return;
+	}
+
+	switch (stmt->kind) {
+	case Ast_EmptyStmt:
+		break;
+
+	case Ast_ValueDecl:
+		cb_emit_value_decl_decls(g, stmt, indent);
+		cb_emit_value_decl_inits(g, stmt, indent);
+		break;
+
+	case Ast_AssignStmt:
+		cb_indent(g, indent);
+		cb_emit_assign_lhs(g, stmt->AssignStmt.lhs[0]);
+		if (stmt->AssignStmt.op.kind == Token_Eq) {
+			gb_fprintf(g->f, " = ");
+			cb_emit_expr(g, stmt->AssignStmt.rhs[0]);
+		} else {
+			String op = {};
+			if (!cb_token_to_c_op(stmt->AssignStmt.op.kind, &op)) {
+				CB_FAIL(g, "Plan 9 C backend: unsupported assign operator\n");
+				return;
+			}
+			gb_fprintf(g->f, " %.*s ", LIT(op));
+			cb_emit_expr(g, stmt->AssignStmt.rhs[0]);
+		}
+		gb_fprintf(g->f, ";\n");
+		break;
+
+	case Ast_ExprStmt:
+		cb_indent(g, indent);
+		cb_emit_expr(g, stmt->ExprStmt.expr);
+		gb_fprintf(g->f, ";\n");
+		break;
+
+	case Ast_ReturnStmt:
+		g->has_return = true;
+		cb_indent(g, indent);
+		if (stmt->ReturnStmt.results.count == 0) {
+			gb_fprintf(g->f, "return 0;\n");
+		} else if (stmt->ReturnStmt.results.count == 1) {
+			gb_fprintf(g->f, "return ");
+			cb_emit_expr(g, stmt->ReturnStmt.results[0]);
+			gb_fprintf(g->f, ";\n");
+		} else {
+			CB_FAIL(g, "Plan 9 C backend: multi-value return not supported yet\n");
+		}
+		break;
+
+	case Ast_BlockStmt:
+		cb_emit_block(g, stmt, indent);
+		break;
+
+	case Ast_IfStmt:
+		cb_emit_if_stmt(g, stmt, indent);
+		break;
+
+	case Ast_ForStmt:
+		cb_emit_for_stmt(g, stmt, indent);
+		break;
+
+	default:
+		CB_FAIL(g, "Plan 9 C backend: unsupported statement %.*s\n", LIT(ast_strings[stmt->kind]));
+		break;
+	}
+}
 
 gb_internal void cb_emit_block(cbGen *g, Ast *block, int indent) {
 	if (block == nullptr) {
@@ -274,41 +584,77 @@ gb_internal void cb_emit_block(cbGen *g, Ast *block, int indent) {
 	}
 
 	for (Ast *stmt : bs->stmts) {
-		switch (stmt->kind) {
-		case Ast_ValueDecl:
+		if (stmt->kind == Ast_ValueDecl) {
 			cb_emit_value_decl_inits(g, stmt, indent);
-			break;
-		case Ast_EmptyStmt:
-			break;
-		case Ast_ExprStmt:
-			cb_indent(g, indent);
-			cb_emit_expr(g, stmt->ExprStmt.expr);
-			gb_fprintf(g->f, ";\n");
-			break;
-		case Ast_ReturnStmt:
-			g->has_return = true;
-			cb_indent(g, indent);
-			if (stmt->ReturnStmt.results.count == 0) {
-				gb_fprintf(g->f, "return 0;\n");
-			} else if (stmt->ReturnStmt.results.count == 1) {
-				gb_fprintf(g->f, "return ");
-				cb_emit_expr(g, stmt->ReturnStmt.results[0]);
-				gb_fprintf(g->f, ";\n");
-			} else {
-				CB_FAIL(g, "Plan 9 C backend: multi-value return not supported yet\n");
-			}
-			break;
-		case Ast_BlockStmt:
-			cb_emit_block(g, stmt, indent);
-			break;
-		default:
-			CB_FAIL(g, "Plan 9 C backend: unsupported statement %.*s\n", LIT(ast_strings[stmt->kind]));
-			break;
+		} else {
+			cb_emit_stmt(g, stmt, indent);
 		}
 		if (g->failed) {
 			return;
 		}
 	}
+}
+
+gb_internal void cb_emit_proc(cbGen *g, Entity *entity) {
+	if (entity == nullptr || entity->kind != Entity_Procedure) {
+		return;
+	}
+	if (entity->Procedure.is_foreign) {
+		return;
+	}
+	if (entity == g->checker->info.entry_point) {
+		return;
+	}
+
+	DeclInfo *decl = decl_info_of_entity(entity);
+	if (decl == nullptr || decl->proc_lit == nullptr) {
+		return;
+	}
+
+	Type *type = base_type(entity->type);
+	if (type == nullptr || type->kind != Type_Proc) {
+		return;
+	}
+	TypeProc *pt = &type->Proc;
+
+	gbString ret_c = gb_string_make(temporary_allocator(), "void");
+	if (pt->result_count > 0 && pt->results != nullptr) {
+		ret_c = gb_string_make(temporary_allocator(), "");
+		if (!cb_type_to_c(g, pt->results->Tuple.variables[0]->type, &ret_c)) {
+			return;
+		}
+	}
+
+	gb_fprintf(g->f, "%s\n", ret_c);
+	gb_fprintf(g->f, "%.*s(", LIT(entity->token.string));
+	if (pt->params != nullptr) {
+		for (isize i = 0; i < pt->param_count; i++) {
+			if (i > 0) {
+				gb_fprintf(g->f, ", ");
+			}
+			Entity *param = pt->params->Tuple.variables[i];
+			cb_emit_c_var(g, param->type, param->token.string);
+		}
+	}
+	gb_fprintf(g->f, ")\n");
+	gb_fprintf(g->f, "{\n");
+
+	bool saved_has_return = g->has_return;
+	g->has_return = false;
+
+	ast_node(pl, ProcLit, decl->proc_lit);
+	cb_emit_block(g, pl->body, 1);
+
+	if (!g->failed && !g->has_return) {
+		if (pt->result_count == 0) {
+			gb_fprintf(g->f, "\treturn;\n");
+		} else {
+			gb_fprintf(g->f, "\treturn 0;\n");
+		}
+	}
+	gb_fprintf(g->f, "}\n\n");
+
+	g->has_return = saved_has_return;
 }
 
 gb_internal void cb_collect_scope_foreign_procs(cbGen *g, Scope *scope) {
@@ -352,7 +698,36 @@ gb_internal void cb_emit_foreign_proc_decl(cbGen *g, Entity *e) {
 gb_internal void cb_emit_foreign_decls(cbGen *g) {
 	Entity *e = nullptr;
 	FOR_PTR_SET(e, g->foreign_procs) {
+	 String name = cb_entity_link_name(e);
+		if (cb_is_runtime_foreign(name)) {
+			continue;
+		}
 		cb_emit_foreign_proc_decl(g, e);
+	}
+}
+
+gb_internal void cb_emit_user_procs(cbGen *g, Checker *checker) {
+	CheckerInfo *info = &checker->info;
+	AstPackage *pkg = info->init_package;
+
+	for (isize i = 0; i < info->entities.count; i++) {
+		Entity *e = info->entities[i];
+		if (e->kind != Entity_Procedure || e->Procedure.is_foreign) {
+			continue;
+		}
+		if (pkg != nullptr && e->pkg != pkg) {
+			continue;
+		}
+		if (e->min_dep_count.load(std::memory_order_relaxed) == 0) {
+			continue;
+		}
+		if (e == info->entry_point) {
+			continue;
+		}
+		cb_emit_proc(g, e);
+		if (g->failed) {
+			return;
+		}
 	}
 }
 
@@ -382,7 +757,7 @@ gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
 	gb_fprintf(g->f, "#include \"odin_generated.h\"\n\n");
 
 	cb_emit_foreign_decls(g);
-	gb_fprintf(g->f, "\n");
+	cb_emit_user_procs(g, checker);
 	gb_fprintf(g->f, "int\n");
 	gb_fprintf(g->f, "odin_main(int argc, char **argv)\n");
 	gb_fprintf(g->f, "{\n");

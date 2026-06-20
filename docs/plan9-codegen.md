@@ -35,7 +35,7 @@ Runtime glue (done, Phase 14):
 | M2 | `cgen` tool: emit hello.c from template | done (bootstrap) |
 | M3 | `cgen`: expressions, calls, strings | superseded by compiler backend |
 | M4 | `cgen`: read Odin subset / IR | in progress (`-backend:plan9-c`) |
-| M5 | Odin compiler `-backend:plan9-c` | started (5a done, 5b hello subset) |
+| M5 | Odin compiler `-backend:plan9-c` | started (5a–5b hello, 5c if/for/procs) |
 
 ## On 9front
 
@@ -62,10 +62,11 @@ Or from checked-in C:
 
 - Export **`odin_main(int argc, char **argv)`**, not `main`.
 - Include `odin_generated.h` (pulls in `sys_*` headers).
+- Do not redeclare `sys_*` in generated C — they come from the runtime headers.
 - C89 only: `/* */` comments, declarations at block start, no `//` in headers.
 - Use `sys_write`, `sys_strlen`, etc. — no raw Plan 9 `print` in generated code.
 
 ## `hello.odin`
 
 `core/os/plan9/examples/hello/hello.odin` is the **source-of-truth** Odin program for this milestone.
-`cgen hello` currently emits the equivalent C; later the compiler will emit the same shape.
+Build with `odin build ... -backend:plan9-c` on Mac, then `build.rc` on 9front.
