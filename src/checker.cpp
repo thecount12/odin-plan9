@@ -1176,6 +1176,7 @@ gb_internal void init_universal(void) {
 			{"WASI",         TargetOs_wasi},
 			{"JS",           TargetOs_js},
 			{"Orca",         TargetOs_orca},
+			{"Plan9",        TargetOs_plan9},
 			{"Freestanding", TargetOs_freestanding},
 		};
 

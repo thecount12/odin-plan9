@@ -9,7 +9,11 @@ Porting Odin via a **C89 runtime backend** (`core/os/plan9/`), not LLVM-on-Plan9
 | `libodin_plan9.a` (sysdeps … net) | done, tested on amd64 + arm64 |
 | Integration glue (`entry.c`, `hello`, `link.rc`) | done |
 | C codegen (`cgen`, `build.rc`) | done on 9front |
-| Odin compiler `-backend:plan9-c` | started (5a–5b) |
+| Odin compiler `-backend:plan9-c` | 5a–5c done; 5d started |
+| `base/runtime` Plan 9 (`ODIN_OS=.Plan9`) | started (5d) |
+| `core:os` Plan 9 bindings | typecheck ok |
+
+See [docs/plan9-runtime.md](docs/plan9-runtime.md).
 
 ## Quick start (9front)
 

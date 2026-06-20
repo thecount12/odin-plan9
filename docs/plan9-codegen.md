@@ -45,7 +45,7 @@ mk integration          # lib + entry + link.rc
 mk cgen                 # optional bootstrap tool
 
 # On Mac (after ./build_odin.sh):
-odin build examples/hello/hello.odin -file -backend:plan9-c -out:hello.c
+odin build examples/hello/hello.odin -file -backend:plan9-c -target:plan9_arm64 -out:hello.c
 
 # On 9front:
 ./build.rc -o hello hello.c

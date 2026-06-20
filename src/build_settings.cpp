@@ -25,6 +25,8 @@ enum TargetOsKind : u16 {
 	TargetOs_js,
 	TargetOs_orca,
 
+	TargetOs_plan9,
+
 	TargetOs_freestanding,
 
 	TargetOs_COUNT,
@@ -42,6 +44,8 @@ gb_global String target_os_names[TargetOs_COUNT] = {
 	str_lit("wasi"),
 	str_lit("js"),
 	str_lit("orca"),
+
+	str_lit("plan9"),
 
 	str_lit("freestanding"),
 };
@@ -898,6 +902,19 @@ gb_global TargetMetrics target_freestanding_riscv64 = {
 	str_lit("riscv64-unknown-gnu"),
 };
 
+gb_global TargetMetrics target_plan9_amd64 = {
+	TargetOs_plan9,
+	TargetArch_amd64,
+	8, 8, AMD64_MAX_ALIGNMENT, 32,
+	str_lit("amd64-plan9"),
+};
+gb_global TargetMetrics target_plan9_arm64 = {
+	TargetOs_plan9,
+	TargetArch_arm64,
+	8, 8, 16, 32,
+	str_lit("arm64-plan9"),
+};
+
 
 struct NamedTargetMetrics {
 	String name;
@@ -943,6 +960,9 @@ gb_global NamedTargetMetrics named_targets[] = {
 	{ str_lit("freestanding_arm32"), &target_freestanding_arm32 },
 
 	{ str_lit("freestanding_riscv64"), &target_freestanding_riscv64 },
+
+	{ str_lit("plan9_amd64"),          &target_plan9_amd64 },
+	{ str_lit("plan9_arm64"),          &target_plan9_arm64 },
 };
 
 gb_global NamedTargetMetrics *selected_target_metrics;

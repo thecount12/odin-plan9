@@ -16,6 +16,11 @@ gb_internal bool cb_validate_build_settings(void) {
 		return true;
 	}
 
+	if (build_context.metrics.os != TargetOs_plan9) {
+		gb_printf_err("-backend:plan9-c requires -target:plan9_amd64 or -target:plan9_arm64\n");
+		return false;
+	}
+
 	switch (build_context.build_mode) {
 	case BuildMode_Executable:
 		break;
@@ -118,6 +123,39 @@ gb_internal void cb_note_foreign_proc(cbGen *g, Entity *e) {
 gb_internal bool cb_is_runtime_foreign(String name) {
 	/* Declared in odin_generated.h via libodin_plan9 headers. */
 	return string_starts_with(name, str_lit("sys_"));
+}
+
+gb_internal bool cb_wants_runtime_emission(void) {
+	char const *key = string_intern_cstring(str_lit("ODIN_PLAN9_EMIT_RUNTIME"));
+	ExactValue *v = map_get(&build_context.defined_values, key);
+	return v != nullptr && v->kind == ExactValue_Bool && v->value_bool;
+}
+
+gb_internal bool cb_should_skip_compiler_proc(Entity *e) {
+	if (e == nullptr || e->kind != Entity_Procedure) {
+		return true;
+	}
+	String link = cb_entity_link_name(e);
+	if (link.len > 0 && link.text[0] == '_' && link.len > 1 && link.text[1] == '_') {
+		return true;
+	}
+	return false;
+}
+
+gb_internal bool cb_is_emittable_package(AstPackage *pkg, CheckerInfo *info) {
+	if (pkg == nullptr || info == nullptr) {
+		return false;
+	}
+	if (pkg == info->builtin_package || pkg == intrinsics_pkg) {
+		return false;
+	}
+	if (pkg == info->init_package) {
+		return true;
+	}
+	if (cb_wants_runtime_emission() && pkg == info->runtime_package) {
+		return true;
+	}
+	return false;
 }
 
 gb_internal void cb_emit_escaped_c_string(cbGen *g, String s) {
@@ -595,14 +633,17 @@ gb_internal void cb_emit_block(cbGen *g, Ast *block, int indent) {
 	}
 }
 
-gb_internal void cb_emit_proc(cbGen *g, Entity *entity) {
+gb_internal void cb_emit_proc(cbGen *g, Entity *entity, bool allow_entry_point) {
 	if (entity == nullptr || entity->kind != Entity_Procedure) {
 		return;
 	}
 	if (entity->Procedure.is_foreign) {
 		return;
 	}
-	if (entity == g->checker->info.entry_point) {
+	if (!allow_entry_point && entity == g->checker->info.entry_point) {
+		return;
+	}
+	if (cb_should_skip_compiler_proc(entity)) {
 		return;
 	}
 
@@ -706,29 +747,56 @@ gb_internal void cb_emit_foreign_decls(cbGen *g) {
 	}
 }
 
-gb_internal void cb_emit_user_procs(cbGen *g, Checker *checker) {
+gb_internal void cb_emit_package_procs(cbGen *g, Checker *checker, bool allow_entry_point) {
 	CheckerInfo *info = &checker->info;
-	AstPackage *pkg = info->init_package;
 
 	for (isize i = 0; i < info->entities.count; i++) {
 		Entity *e = info->entities[i];
 		if (e->kind != Entity_Procedure || e->Procedure.is_foreign) {
 			continue;
 		}
-		if (pkg != nullptr && e->pkg != pkg) {
+		if (!cb_is_emittable_package(e->pkg, info)) {
 			continue;
 		}
 		if (e->min_dep_count.load(std::memory_order_relaxed) == 0) {
 			continue;
 		}
-		if (e == info->entry_point) {
-			continue;
-		}
-		cb_emit_proc(g, e);
+		cb_emit_proc(g, e, allow_entry_point);
 		if (g->failed) {
 			return;
 		}
 	}
+}
+
+gb_internal void cb_emit_runtime_glue(cbGen *g, Checker *checker) {
+	if (!cb_wants_runtime_emission()) {
+		return;
+	}
+
+	CheckerInfo *info = &checker->info;
+
+	gb_fprintf(g->f, "static void\n");
+	gb_fprintf(g->f, "__$startup_runtime(void)\n");
+	gb_fprintf(g->f, "{\n");
+	for (Entity *e : info->init_procedures) {
+		if (e == nullptr || e->kind != Entity_Procedure || e->Procedure.is_foreign) {
+			continue;
+		}
+		if (cb_should_skip_compiler_proc(e)) {
+			continue;
+		}
+		gb_fprintf(g->f, "\t%.*s();\n", LIT(e->token.string));
+	}
+	gb_fprintf(g->f, "}\n\n");
+
+	gb_fprintf(g->f, "static void\n");
+	gb_fprintf(g->f, "__$cleanup_runtime(void)\n");
+	gb_fprintf(g->f, "{\n");
+	gb_fprintf(g->f, "}\n\n");
+}
+
+gb_internal void cb_emit_user_procs(cbGen *g, Checker *checker) {
+	cb_emit_package_procs(g, checker, false);
 }
 
 gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
@@ -757,19 +825,43 @@ gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
 	gb_fprintf(g->f, "#include \"odin_generated.h\"\n\n");
 
 	cb_emit_foreign_decls(g);
-	cb_emit_user_procs(g, checker);
+	cb_emit_runtime_glue(g, checker);
+	cb_emit_package_procs(g, checker, true);
+
+	String entry_name = str_lit("main");
+	if (entry_point != nullptr) {
+		entry_name = entry_point->token.string;
+	}
+
 	gb_fprintf(g->f, "int\n");
 	gb_fprintf(g->f, "odin_main(int argc, char **argv)\n");
 	gb_fprintf(g->f, "{\n");
 	gb_fprintf(g->f, "\tUSED(argc);\n");
 	gb_fprintf(g->f, "\tUSED(argv);\n");
 
+	if (cb_wants_runtime_emission()) {
+		gb_fprintf(g->f, "\t__$startup_runtime();\n");
+	}
+
 	if (entry_point != nullptr) {
 		DeclInfo *decl = decl_info_of_entity(entry_point);
 		if (decl != nullptr && decl->proc_lit != nullptr) {
-			ast_node(pl, ProcLit, decl->proc_lit);
-			cb_emit_block(g, pl->body, 1);
+			Type *type = base_type(entry_point->type);
+			if (type != nullptr && type->kind == Type_Proc) {
+				TypeProc *pt = &type->Proc;
+				if (pt->param_count == 0) {
+					gb_fprintf(g->f, "\t%.*s();\n", LIT(entry_name));
+				} else {
+					/* Inline entry body when it takes parameters (unusual). */
+					ast_node(pl, ProcLit, decl->proc_lit);
+					cb_emit_block(g, pl->body, 1);
+				}
+			}
 		}
+	}
+
+	if (cb_wants_runtime_emission()) {
+		gb_fprintf(g->f, "\t__$cleanup_runtime();\n");
 	}
 
 	if (!g->failed && !g->has_return) {

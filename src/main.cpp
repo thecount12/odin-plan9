@@ -3923,6 +3923,16 @@ int main(int arg_count, char const **arg_ptr) {
 			get_fullpath_relative(heap_allocator(), odin_root_dir(), str_lit("shared"), nullptr));
 	}
 
+	if (build_context.backend_kind == BackendKind_Plan9_C && selected_target_metrics == nullptr) {
+		for (isize i = 0; i < gb_count_of(named_targets); i++) {
+			if (named_targets[i].metrics->os == TargetOs_plan9 &&
+			    named_targets[i].metrics->arch == TargetArch_arm64) {
+				selected_target_metrics = named_targets + i;
+				break;
+			}
+		}
+	}
+
 	init_build_context(selected_target_metrics ? selected_target_metrics->metrics : nullptr, selected_subtarget);
 	if (!cb_validate_build_settings()) {
 		return 1;

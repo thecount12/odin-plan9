@@ -9,11 +9,9 @@ write_cstr(char *s)
 	return;
 }
 
-int
-odin_main(int argc, char **argv)
+void
+main()
 {
-	USED(argc);
-	USED(argv);
 	char *hello;
 	char *extra;
 	int n;
@@ -27,5 +25,14 @@ odin_main(int argc, char **argv)
 	for (i = 0; (i < 1); i += 1) {
 		write_cstr(extra);
 	}
+	return;
+}
+
+int
+odin_main(int argc, char **argv)
+{
+	USED(argc);
+	USED(argv);
+	main();
 	return 0;
 }

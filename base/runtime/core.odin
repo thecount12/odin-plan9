@@ -598,6 +598,7 @@ ALL_ODIN_OS_TYPES :: Odin_OS_Types{
 	.WASI,
 	.JS,
 	.Orca,
+	.Plan9,
 	.Freestanding,
 }
 
