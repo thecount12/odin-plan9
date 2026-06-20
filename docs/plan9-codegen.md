@@ -35,7 +35,7 @@ Runtime glue (done, Phase 14):
 | M2 | `cgen` tool: emit hello.c from template | done (bootstrap) |
 | M3 | `cgen`: expressions, calls, strings | superseded by compiler backend |
 | M4 | `cgen`: read Odin subset / IR | in progress (`-backend:plan9-c`) |
-| M5 | Odin compiler `-backend:plan9-c` | started (5a–5b hello, 5c if/for/procs) |
+| M5 | Odin compiler `-backend:plan9-c` | 5a–5c hello, 5d structs/switch |
 
 ## On 9front
 
@@ -46,10 +46,13 @@ mk cgen                 # optional bootstrap tool
 
 # On Mac (after ./build_odin.sh):
 odin build examples/hello/hello.odin -file -backend:plan9-c -target:plan9_arm64 -out:hello.c
+odin build examples/hello_adv/hello_adv.odin -file -backend:plan9-c -target:plan9_arm64 -out:hello_adv.c
+
+# uriel (amd64): add -target:plan9_amd64
 
 # On 9front:
-./build.rc -o hello hello.c
-./hello
+./build.rc -o hello hello.c && ./hello
+./build.rc -o hello_adv hello_adv.c && ./hello_adv
 ```
 
 Or from checked-in C:
