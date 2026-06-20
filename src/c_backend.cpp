@@ -100,6 +100,12 @@ gb_internal bool cb_type_to_c(cbGen *g, Type *type, gbString *out) {
 			*out = gb_string_appendc(*out, "odin_string");
 			break;
 		case Basic_rawptr: *out = gb_string_appendc(*out, "void"); break;
+		case Basic_any:
+			*out = gb_string_appendc(*out, "odin_any");
+			break;
+		case Basic_typeid:
+			*out = gb_string_appendc(*out, "unsigned long long");
+			break;
 		default:
 			CB_FAIL(g, "Plan 9 C backend: unsupported basic type %.*s\n", LIT(type->Basic.name));
 			return false;
@@ -429,6 +435,43 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 	if (proc == nullptr && ce->entity_procedure_of != nullptr) {
 		proc = ce->entity_procedure_of;
 	}
+
+	if (ce->proc->tav.mode == Addressing_Builtin) {
+		BuiltinProcId builtin_id = BuiltinProc_Invalid;
+		if (proc != nullptr) {
+			builtin_id = cast(BuiltinProcId)proc->Builtin.id;
+		}
+		switch (builtin_id) {
+		case BuiltinProc_len:
+			if (ce->args.count != 1) {
+				CB_FAIL(g, "Plan 9 C backend: invalid len call\n");
+				return;
+			}
+			{
+				Type *arg_type = base_type(type_of_expr(ce->args[0]));
+				if (is_type_array(arg_type)) {
+					gb_fprintf(g->f, "%lld", cast(long long)get_array_type_count(arg_type));
+				} else {
+					gb_fprintf(g->f, "(");
+					cb_emit_expr(g, ce->args[0]);
+					gb_fprintf(g->f, ".len)");
+				}
+			}
+			return;
+		case BuiltinProc_raw_data:
+			if (ce->args.count != 1) {
+				CB_FAIL(g, "Plan 9 C backend: invalid raw_data call\n");
+				return;
+			}
+			cb_emit_expr(g, ce->args[0]);
+			gb_fprintf(g->f, ".data");
+			return;
+		default:
+			CB_FAIL(g, "Plan 9 C backend: unsupported builtin %.*s\n", LIT(proc != nullptr ? proc->token.string : str_lit("?")));
+			return;
+		}
+	}
+
 	if (proc == nullptr) {
 		CB_FAIL(g, "Plan 9 C backend: call to unknown procedure\n");
 		return;
@@ -459,7 +502,15 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 	case_ast_node(bl, BasicLit, expr);
 		if (bl->token.kind == Token_String) {
 			if (expr->tav.value.kind == ExactValue_String) {
-				cb_emit_escaped_c_string(g, expr->tav.value.value_string);
+				String str_val = expr->tav.value.value_string;
+				if (is_type_string(type_of_expr(expr))) {
+					cb_emit_type_defs_for_type(g, t_string);
+					gb_fprintf(g->f, "((odin_string){(unsigned char*)");
+					cb_emit_escaped_c_string(g, str_val);
+					gb_fprintf(g->f, ", %lld})", cast(long long)str_val.len);
+				} else {
+					cb_emit_escaped_c_string(g, str_val);
+				}
 			} else {
 				CB_FAIL(g, "Plan 9 C backend: non-constant string literal\n");
 			}
@@ -1002,33 +1053,93 @@ gb_internal void cb_emit_block(cbGen *g, Ast *block, int indent) {
 	}
 }
 
-gb_internal void cb_emit_proc(cbGen *g, Entity *entity, bool allow_entry_point) {
+gb_internal bool cb_should_emit_proc(cbGen *g, Entity *entity, bool allow_entry_point) {
 	if (entity == nullptr || entity->kind != Entity_Procedure) {
-		return;
+		return false;
 	}
 	if (entity->Procedure.is_foreign) {
-		return;
+		return false;
 	}
 	if (!allow_entry_point && entity == g->checker->info.entry_point) {
-		return;
+		return false;
 	}
 	if (cb_should_skip_compiler_proc(entity)) {
-		return;
+		return false;
 	}
-
 	DeclInfo *decl = decl_info_of_entity(entity);
 	if (decl == nullptr || decl->proc_lit == nullptr) {
+		return false;
+	}
+	Type *type = base_type(entity->type);
+	if (type == nullptr || type->kind != Type_Proc) {
+		return false;
+	}
+	if (type->Proc.variadic) {
+		return false;
+	}
+	if (entity->min_dep_count.load(std::memory_order_relaxed) == 0) {
+		return false;
+	}
+	if (!cb_is_emittable_package(entity->pkg, &g->checker->info)) {
+		return false;
+	}
+	return true;
+}
+
+gb_internal void cb_emit_proc_fwd_decl(cbGen *g, Entity *entity, bool allow_entry_point) {
+	if (!cb_should_emit_proc(g, entity, allow_entry_point)) {
 		return;
 	}
 
 	Type *type = base_type(entity->type);
-	if (type == nullptr || type->kind != Type_Proc) {
-		return;
-	}
 	TypeProc *pt = &type->Proc;
-	if (pt->variadic) {
+
+	gbString ret_c = gb_string_make(temporary_allocator(), "void");
+	if (pt->result_count > 0 && pt->results != nullptr) {
+		ret_c = gb_string_make(temporary_allocator(), "");
+		if (!cb_type_to_c(g, pt->results->Tuple.variables[0]->type, &ret_c)) {
+			return;
+		}
+	}
+
+	if (allow_entry_point && entity == g->checker->info.entry_point) {
+		gb_fprintf(g->f, "static %s %s(", ret_c, CB_ODIN_USER_MAIN_NAME);
+	} else {
+		gb_fprintf(g->f, "%s %.*s(", ret_c, LIT(entity->token.string));
+	}
+	if (pt->param_count > 0 && pt->params != nullptr) {
+		for (isize i = 0; i < pt->param_count; i++) {
+			if (i > 0) {
+				gb_fprintf(g->f, ", ");
+			}
+			Entity *param = pt->params->Tuple.variables[i];
+			cb_emit_c_var(g, param->type, param->token.string);
+		}
+	} else {
+		gb_fprintf(g->f, "void");
+	}
+	gb_fprintf(g->f, ");\n");
+}
+
+gb_internal void cb_emit_package_proc_fwd_decls(cbGen *g, Checker *checker, bool allow_entry_point) {
+	CheckerInfo *info = &checker->info;
+	for (isize i = 0; i < info->entities.count; i++) {
+		cb_emit_proc_fwd_decl(g, info->entities[i], allow_entry_point);
+		if (g->failed) {
+			return;
+		}
+	}
+	gb_fprintf(g->f, "\n");
+}
+
+gb_internal void cb_emit_proc(cbGen *g, Entity *entity, bool allow_entry_point) {
+	if (!cb_should_emit_proc(g, entity, allow_entry_point)) {
 		return;
 	}
+
+	DeclInfo *decl = decl_info_of_entity(entity);
+	Type *type = base_type(entity->type);
+	TypeProc *pt = &type->Proc;
 
 	gbString ret_c = gb_string_make(temporary_allocator(), "void");
 	if (pt->result_count > 0 && pt->results != nullptr) {
@@ -1286,9 +1397,7 @@ gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
 	cb_emit_foreign_decls(g);
 	cb_emit_all_type_defs(g, checker);
 	cb_emit_runtime_glue(g, checker);
-	if (entry_point != nullptr) {
-		gb_fprintf(g->f, "static void %s(void);\n\n", CB_ODIN_USER_MAIN_NAME);
-	}
+	cb_emit_package_proc_fwd_decls(g, checker, true);
 	cb_emit_package_procs(g, checker, true);
 
 	gb_fprintf(g->f, "int\n");

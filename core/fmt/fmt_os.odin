@@ -1,6 +1,7 @@
 #+build !freestanding
 #+build !js
 #+build !orca
+#+build !plan9
 package fmt
 
 import "base:runtime"

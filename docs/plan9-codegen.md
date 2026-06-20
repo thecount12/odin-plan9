@@ -35,7 +35,8 @@ Runtime glue (done, Phase 14):
 | M2 | `cgen` tool: emit hello.c from template | done (bootstrap) |
 | M3 | `cgen`: expressions, calls, strings | superseded by compiler backend |
 | M4 | `cgen`: read Odin subset / IR | in progress (`-backend:plan9-c`) |
-| M5 | Odin compiler `-backend:plan9-c` | 5a–5c hello, 5d structs/switch |
+| M5 | Odin compiler `-backend:plan9-c` | 5a–5d hello_adv |
+| M6 | `import "core:fmt"` string `println` (`fmt_plan9.odin`) | done (`fmt_hello`) |
 
 ## On 9front
 
@@ -47,12 +48,15 @@ mk cgen                 # optional bootstrap tool
 # On Mac (after ./build_odin.sh):
 odin build examples/hello/hello.odin -file -backend:plan9-c -target:plan9_arm64 -out:hello.c
 odin build examples/hello_adv/hello_adv.odin -file -backend:plan9-c -target:plan9_arm64 -out:hello_adv.c
+odin build examples/fmt_hello/fmt_hello.odin -file -backend:plan9-c -target:plan9_arm64 -out:fmt_hello.c
 
 # uriel (amd64): add -target:plan9_amd64
 
 # On 9front:
 ./build.rc -o hello hello.c && ./hello
 ./build.rc -o hello_adv hello_adv.c && ./hello_adv
+# On 9front (from core/os/plan9 — needs include/ and src/ on the compile line):
+./build.rc -o fmt_hello examples/fmt_hello/fmt_hello.c && ./fmt_hello
 ```
 
 Or from checked-in C:
@@ -68,7 +72,14 @@ Or from checked-in C:
 - Include `odin_generated.h` (pulls in `sys_*` headers).
 - Do not redeclare `sys_*` in generated C — they come from the runtime headers.
 - C89 only: `/* */` comments, declarations at block start, no `//` in headers.
+- Emit **forward declarations** for all functions before first use (Plan 9 `$objtype`c is strict C89).
 - Use `sys_write`, `sys_strlen`, etc. — no raw Plan 9 `print` in generated code.
+- On Plan 9, `core:fmt` uses `fmt_plan9.odin`: string-only `println`/`print` via `sys_write` (no `..any` yet).
+
+## `fmt_hello.odin`
+
+`core/os/plan9/examples/fmt_hello/fmt_hello.odin` exercises `import "core:fmt"` with a single string argument.
+Full variadic formatting (`..any`, interfaces, reflect) is not emitted yet.
 
 ## `hello.odin`
 
