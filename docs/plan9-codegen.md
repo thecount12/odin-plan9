@@ -37,6 +37,7 @@ Runtime glue (done, Phase 14):
 | M4 | `cgen`: read Odin subset / IR | in progress (`-backend:plan9-c`) |
 | M5 | Odin compiler `-backend:plan9-c` | 5a–5d hello_adv |
 | M6 | `import "core:fmt"` string `println` (`fmt_plan9.odin`) | done (`fmt_hello`) |
+| M7 | `..any` variadic calls, range-for, multi-arg `println` | done |
 
 ## On 9front
 
@@ -78,8 +79,8 @@ Or from checked-in C:
 
 ## `fmt_hello.odin`
 
-`core/os/plan9/examples/fmt_hello/fmt_hello.odin` exercises `import "core:fmt"` with a single string argument.
-Full variadic formatting (`..any`, interfaces, reflect) is not emitted yet.
+`core/os/plan9/examples/fmt_hello/fmt_hello.odin` exercises `import "core:fmt"` with variadic `println` (strings via `..any` today).
+Full formatting (integers, `%v`, interfaces, reflect) is not emitted yet.
 
 ## `hello.odin`
 

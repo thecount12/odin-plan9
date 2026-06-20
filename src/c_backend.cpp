@@ -4,6 +4,7 @@ struct cbGen {
 	bool         failed;
 	bool         has_return;
 	i32          proc_result_count;
+	i32          temp_counter;
 	PtrSet<Entity *> foreign_procs;
 	PtrMap<Type *, String> emitted_type_names;
 	PtrSet<Type *> emitted_type_defs;
@@ -221,6 +222,10 @@ gb_internal String cb_type_c_name(cbGen *g, Type *type) {
 		return str_lit("odin_string");
 	}
 
+	if (is_type_any(type)) {
+		return str_lit("odin_any");
+	}
+
 	String *found = map_get(&g->emitted_type_names, type);
 	if (found != nullptr) {
 		return *found;
@@ -251,6 +256,17 @@ gb_internal void cb_emit_type_defs_for_type(cbGen *g, Type *type) {
 			gb_fprintf(g->f, "struct odin_string {\n");
 			gb_fprintf(g->f, "\tunsigned char *data;\n");
 			gb_fprintf(g->f, "\tlong len;\n");
+			gb_fprintf(g->f, "};\n\n");
+		}
+		return;
+	}
+
+	if (is_type_any(type)) {
+		if (!ptr_set_update(&g->emitted_type_defs, type)) {
+			gb_fprintf(g->f, "typedef struct odin_any odin_any;\n");
+			gb_fprintf(g->f, "struct odin_any {\n");
+			gb_fprintf(g->f, "\tvoid *data;\n");
+			gb_fprintf(g->f, "\tunsigned long long id;\n");
 			gb_fprintf(g->f, "};\n\n");
 		}
 		return;
@@ -429,6 +445,181 @@ gb_internal bool cb_token_to_c_op(TokenKind kind, String *out) {
 	}
 }
 
+gb_internal u64 cb_typeid_u64_for_type(Type *type) {
+	type = default_type(type);
+	return type_hash_canonical_type(type);
+}
+
+gb_internal void cb_emit_exact_value(cbGen *g, ExactValue value) {
+	switch (value.kind) {
+	case ExactValue_Integer:
+		{
+			String s = big_int_to_string(temporary_allocator(), &value.value_integer);
+			gb_fprintf(g->f, "%.*s", LIT(s));
+		}
+		break;
+	case ExactValue_Float:
+		gb_fprintf(g->f, "%g", value.value_float);
+		break;
+	case ExactValue_Bool:
+		gb_fprintf(g->f, "%s", value.value_bool ? "1" : "0");
+		break;
+	case ExactValue_Typeid:
+		gb_fprintf(g->f, "%llu", cast(unsigned long long)cb_typeid_u64_for_type(value.value_typeid));
+		break;
+	default:
+		CB_FAIL(g, "Plan 9 C backend: unsupported exact value\n");
+		break;
+	}
+}
+
+gb_internal bool cb_call_is_odin_variadic(Entity *proc) {
+	if (proc == nullptr) {
+		return false;
+	}
+	Type *type = base_type(proc->type);
+	if (type == nullptr || type->kind != Type_Proc) {
+		return false;
+	}
+	return type->Proc.variadic && !type->Proc.c_vararg;
+}
+
+gb_internal bool cb_call_needs_variadic_pack(Ast *expr) {
+	ast_node(ce, CallExpr, expr);
+	Entity *proc = entity_of_node(ce->proc);
+	if (proc == nullptr) {
+		proc = ce->entity_procedure_of;
+	}
+	if (!cb_call_is_odin_variadic(proc)) {
+		return false;
+	}
+	if (ce->split_args == nullptr) {
+		return false;
+	}
+	if (ce->ellipsis.pos.line != 0) {
+		return false;
+	}
+	Type *type = base_type(proc->type);
+	TypeProc *pt = &type->Proc;
+	isize variadic_count = ce->split_args->positional.count - pt->variadic_index;
+	return variadic_count > 0;
+}
+
+gb_internal void cb_emit_call_args(cbGen *g, Ast *expr, Entity *proc, char const *slice_temp) {
+	ast_node(ce, CallExpr, expr);
+	Type *type = base_type(proc->type);
+	TypeProc *pt = &type->Proc;
+
+	for (isize i = 0; i < pt->param_count; i++) {
+		if (i > 0) {
+			gb_fprintf(g->f, ", ");
+		}
+		if (pt->variadic && i == pt->variadic_index) {
+			gb_fprintf(g->f, "%s", slice_temp);
+		} else if (i < ce->split_args->positional.count) {
+			cb_emit_expr(g, ce->split_args->positional[i]);
+		} else {
+			CB_FAIL(g, "Plan 9 C backend: missing call argument\n");
+			return;
+		}
+	}
+}
+
+gb_internal void cb_emit_variadic_call_stmts(cbGen *g, Ast *expr, int indent) {
+	ast_node(ce, CallExpr, expr);
+	Entity *proc = entity_of_node(ce->proc);
+	if (proc == nullptr) {
+		proc = ce->entity_procedure_of;
+	}
+	if (proc == nullptr) {
+		CB_FAIL(g, "Plan 9 C backend: call to unknown procedure\n");
+		return;
+	}
+
+	Type *type = base_type(proc->type);
+	TypeProc *pt = &type->Proc;
+	GB_ASSERT(pt->variadic && !pt->c_vararg);
+
+	isize variadic_count = ce->split_args->positional.count - pt->variadic_index;
+	Type *slice_type = pt->params->Tuple.variables[pt->variadic_index]->type;
+	cb_emit_type_defs_for_type(g, slice_type);
+	cb_emit_type_defs_for_type(g, slice_type->Slice.elem);
+
+	String slice_name = cb_type_c_name(g, slice_type);
+	String elem_name = cb_type_c_name(g, slice_type->Slice.elem);
+
+	i32 base = g->temp_counter;
+	g->temp_counter += cast(i32)variadic_count + 2;
+
+	gbString slice_temp = gb_string_make(temporary_allocator(), "");
+	slice_temp = gb_string_append_fmt(slice_temp, "_cb_sl_%d", base + cast(i32)variadic_count + 1);
+	gbString arr_temp = gb_string_make(temporary_allocator(), "");
+	arr_temp = gb_string_append_fmt(arr_temp, "_cb_ar_%d", base + cast(i32)variadic_count);
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "{\n");
+
+	if (variadic_count > 0) {
+		auto value_temps = array_make<gbString>(temporary_allocator(), variadic_count);
+		auto elem_typeids = array_make<u64>(temporary_allocator(), variadic_count);
+
+		for (isize i = 0; i < variadic_count; i++) {
+			Ast *arg = ce->split_args->positional[pt->variadic_index + i];
+			Type *arg_type = default_type(type_of_expr(arg));
+			value_temps[i] = gb_string_make(temporary_allocator(), "");
+			value_temps[i] = gb_string_append_fmt(value_temps[i], "_cb_v_%d", base + cast(i32)i);
+			elem_typeids[i] = cb_typeid_u64_for_type(arg_type);
+			cb_indent(g, indent+1);
+			cb_emit_c_var(g, arg_type, make_string_c(value_temps[i]));
+			gb_fprintf(g->f, ";\n");
+		}
+
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%.*s %s[%lld];\n", LIT(elem_name), arr_temp, cast(long long)variadic_count);
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%.*s %s;\n", LIT(slice_name), slice_temp);
+
+		for (isize i = 0; i < variadic_count; i++) {
+			Ast *arg = ce->split_args->positional[pt->variadic_index + i];
+			cb_indent(g, indent+1);
+			gb_fprintf(g->f, "%s = ", value_temps[i]);
+			cb_emit_expr(g, arg);
+			gb_fprintf(g->f, ";\n");
+			cb_indent(g, indent+1);
+			gb_fprintf(g->f, "%s[%lld] = ((odin_any){(void *)&%s, %llu});\n",
+			           arr_temp, cast(long long)i, value_temps[i], cast(unsigned long long)elem_typeids[i]);
+		}
+
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%s.data = %s;\n", slice_temp, arr_temp);
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%s.len = %lld;\n", slice_temp, cast(long long)variadic_count);
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%s.cap = %lld;\n", slice_temp, cast(long long)variadic_count);
+	} else {
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%.*s %s;\n", LIT(slice_name), slice_temp);
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%s.data = 0;\n", slice_temp);
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%s.len = 0;\n", slice_temp);
+		cb_indent(g, indent+1);
+		gb_fprintf(g->f, "%s.cap = 0;\n", slice_temp);
+	}
+
+	if (proc->Procedure.is_foreign) {
+		cb_note_foreign_proc(g, proc);
+	}
+
+	cb_indent(g, indent+1);
+	gb_fprintf(g->f, "%.*s(", LIT(cb_entity_link_name(proc)));
+	cb_emit_call_args(g, expr, proc, slice_temp);
+	gb_fprintf(g->f, ");\n");
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "}\n");
+}
+
 gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 	ast_node(ce, CallExpr, expr);
 	Entity *proc = entity_of_node(ce->proc);
@@ -466,6 +657,19 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 			cb_emit_expr(g, ce->args[0]);
 			gb_fprintf(g->f, ".data");
 			return;
+		case BuiltinProc_typeid_of:
+			if (ce->args.count != 1) {
+				CB_FAIL(g, "Plan 9 C backend: invalid typeid_of call\n");
+				return;
+			}
+			{
+				Type *t = ce->args[0]->tav.type;
+				if (t == nullptr) {
+					t = type_of_expr(ce->args[0]);
+				}
+				gb_fprintf(g->f, "%llu", cast(unsigned long long)cb_typeid_u64_for_type(t));
+			}
+			return;
 		default:
 			CB_FAIL(g, "Plan 9 C backend: unsupported builtin %.*s\n", LIT(proc != nullptr ? proc->token.string : str_lit("?")));
 			return;
@@ -477,17 +681,26 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 		return;
 	}
 
+	if (cb_call_needs_variadic_pack(expr)) {
+		CB_FAIL(g, "Plan 9 C backend: variadic call must be used as a statement\n");
+		return;
+	}
+
 	if (proc->Procedure.is_foreign) {
 		cb_note_foreign_proc(g, proc);
 	}
 
 	String name = cb_entity_link_name(proc);
 	gb_fprintf(g->f, "%.*s(", LIT(name));
-	for (isize i = 0; i < ce->args.count; i++) {
-		if (i > 0) {
-			gb_fprintf(g->f, ", ");
+	if (ce->split_args != nullptr) {
+		cb_emit_call_args(g, expr, proc, "");
+	} else {
+		for (isize i = 0; i < ce->args.count; i++) {
+			if (i > 0) {
+				gb_fprintf(g->f, ", ");
+			}
+			cb_emit_expr(g, ce->args[i]);
 		}
-		cb_emit_expr(g, ce->args[i]);
 	}
 	gb_fprintf(g->f, ")");
 }
@@ -527,7 +740,11 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 	case_end;
 
 	case_ast_node(id, Ident, expr);
-		gb_fprintf(g->f, "%.*s", LIT(id->token.string));
+		if (expr->tav.mode == Addressing_Value && expr->tav.value.kind != ExactValue_Invalid) {
+			cb_emit_exact_value(g, expr->tav.value);
+		} else {
+			gb_fprintf(g->f, "%.*s", LIT(id->token.string));
+		}
 	case_end;
 
 	case_ast_node(be, BinaryExpr, expr);
@@ -535,6 +752,12 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 		cb_emit_expr(g, be->left);
 		gb_fprintf(g->f, " %.*s ", LIT(be->op.string));
 		cb_emit_expr(g, be->right);
+		gb_fprintf(g->f, ")");
+	case_end;
+
+	case_ast_node(de, DerefExpr, expr);
+		gb_fprintf(g->f, "(*");
+		cb_emit_expr(g, de->expr);
 		gb_fprintf(g->f, ")");
 	case_end;
 
@@ -570,10 +793,17 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 	case_end;
 
 	case_ast_node(ie, IndexExpr, expr);
-		cb_emit_expr(g, ie->expr);
-		gb_fprintf(g->f, "[");
-		cb_emit_expr(g, ie->index);
-		gb_fprintf(g->f, "]");
+		{
+			Type *base = base_type(type_deref(type_of_expr(ie->expr)));
+			cb_emit_expr(g, ie->expr);
+			if (base != nullptr && base->kind == Type_Slice) {
+				gb_fprintf(g->f, ".data[");
+			} else {
+				gb_fprintf(g->f, "[");
+			}
+			cb_emit_expr(g, ie->index);
+			gb_fprintf(g->f, "]");
+		}
 	case_end;
 
 	case_ast_node(cl, CompoundLit, expr);
@@ -727,6 +957,34 @@ gb_internal void cb_hoist_block_decls(cbGen *g, Ast *block, int indent) {
 		case Ast_ForStmt:
 			cb_hoist_value_decl(g, stmt->ForStmt.init, indent);
 			break;
+		case Ast_RangeStmt:
+			if (stmt->RangeStmt.init != nullptr && stmt->RangeStmt.init->kind == Ast_ValueDecl) {
+				cb_emit_value_decl_decls(g, stmt->RangeStmt.init, indent);
+			}
+			if (stmt->RangeStmt.vals.count > 1) {
+				Ast *val1 = stmt->RangeStmt.vals[1];
+				if (val1 != nullptr && !is_blank_ident(val1) && val1->kind == Ast_Ident) {
+					Type *index_type = type_of_expr(val1);
+					if (index_type == nullptr) {
+						index_type = t_int;
+					}
+					cb_indent(g, indent);
+					cb_emit_c_var(g, index_type, val1->Ident.token.string);
+					gb_fprintf(g->f, ";\n");
+				}
+			}
+			if (stmt->RangeStmt.vals.count > 0) {
+				Ast *val0 = stmt->RangeStmt.vals[0];
+				if (val0 != nullptr && !is_blank_ident(val0) && val0->kind == Ast_Ident) {
+					Type *val_type = type_of_expr(val0);
+					if (val_type != nullptr) {
+						cb_indent(g, indent);
+						cb_emit_c_var(g, val_type, val0->Ident.token.string);
+						gb_fprintf(g->f, ";\n");
+					}
+				}
+			}
+			break;
 		}
 	}
 }
@@ -862,6 +1120,49 @@ gb_internal void cb_emit_if_stmt(cbGen *g, Ast *stmt, int indent) {
 	cb_emit_else(g, is->else_stmt, indent);
 }
 
+gb_internal void cb_emit_range_stmt(cbGen *g, Ast *stmt, int indent) {
+	ast_node(rs, RangeStmt, stmt);
+
+	Type *expr_type = base_type(type_deref(type_of_expr(rs->expr)));
+	if (expr_type == nullptr || expr_type->kind != Type_Slice) {
+		CB_FAIL(g, "Plan 9 C backend: range only supported for slices\n");
+		return;
+	}
+
+	cb_emit_init_decls(g, rs->init, indent);
+	cb_emit_init_expr(g, rs->init, indent);
+
+	Ast *val0 = rs->vals.count > 0 ? rs->vals[0] : nullptr;
+	Ast *val1 = rs->vals.count > 1 ? rs->vals[1] : nullptr;
+
+	String index_name = str_lit("i");
+	if (val1 != nullptr && !is_blank_ident(val1) && val1->kind == Ast_Ident) {
+		index_name = val1->Ident.token.string;
+	}
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "for (%.*s = 0; ", LIT(index_name));
+	cb_emit_expr(g, rs->expr);
+	gb_fprintf(g->f, ".len > %.*s; %.*s += 1) {\n", LIT(index_name), LIT(index_name));
+
+	if (val0 != nullptr && !is_blank_ident(val0) && val0->kind == Ast_Ident) {
+		cb_indent(g, indent+1);
+		cb_emit_assign_lhs(g, val0);
+		gb_fprintf(g->f, " = ");
+		cb_emit_expr(g, rs->expr);
+		gb_fprintf(g->f, ".data[%.*s];\n", LIT(index_name));
+	}
+
+	if (rs->body->kind == Ast_BlockStmt) {
+		cb_emit_block(g, rs->body, indent+1);
+	} else {
+		cb_emit_stmt(g, rs->body, indent+1);
+	}
+
+	cb_indent(g, indent);
+	gb_fprintf(g->f, "}\n");
+}
+
 gb_internal void cb_emit_for_stmt(cbGen *g, Ast *stmt, int indent) {
 	ast_node(fs, ForStmt, stmt);
 
@@ -988,9 +1289,15 @@ gb_internal void cb_emit_stmt(cbGen *g, Ast *stmt, int indent) {
 		break;
 
 	case Ast_ExprStmt:
-		cb_indent(g, indent);
-		cb_emit_expr(g, stmt->ExprStmt.expr);
-		gb_fprintf(g->f, ";\n");
+		if (stmt->ExprStmt.expr != nullptr &&
+		    stmt->ExprStmt.expr->kind == Ast_CallExpr &&
+		    cb_call_needs_variadic_pack(stmt->ExprStmt.expr)) {
+			cb_emit_variadic_call_stmts(g, stmt->ExprStmt.expr, indent);
+		} else {
+			cb_indent(g, indent);
+			cb_emit_expr(g, stmt->ExprStmt.expr);
+			gb_fprintf(g->f, ";\n");
+		}
 		break;
 
 	case Ast_ReturnStmt:
@@ -1003,9 +1310,14 @@ gb_internal void cb_emit_stmt(cbGen *g, Ast *stmt, int indent) {
 				gb_fprintf(g->f, "return 0;\n");
 			}
 		} else if (stmt->ReturnStmt.results.count == 1) {
-			gb_fprintf(g->f, "return ");
-			cb_emit_expr(g, stmt->ReturnStmt.results[0]);
-			gb_fprintf(g->f, ";\n");
+			Ast *result = stmt->ReturnStmt.results[0];
+			if (result->kind == Ast_CallExpr && cb_call_needs_variadic_pack(result)) {
+				CB_FAIL(g, "Plan 9 C backend: variadic call return not supported yet\n");
+			} else {
+				gb_fprintf(g->f, "return ");
+				cb_emit_expr(g, result);
+				gb_fprintf(g->f, ";\n");
+			}
 		} else {
 			CB_FAIL(g, "Plan 9 C backend: multi-value return not supported yet\n");
 		}
@@ -1021,6 +1333,10 @@ gb_internal void cb_emit_stmt(cbGen *g, Ast *stmt, int indent) {
 
 	case Ast_ForStmt:
 		cb_emit_for_stmt(g, stmt, indent);
+		break;
+
+	case Ast_RangeStmt:
+		cb_emit_range_stmt(g, stmt, indent);
 		break;
 
 	case Ast_SwitchStmt:
@@ -1072,9 +1388,6 @@ gb_internal bool cb_should_emit_proc(cbGen *g, Entity *entity, bool allow_entry_
 	}
 	Type *type = base_type(entity->type);
 	if (type == nullptr || type->kind != Type_Proc) {
-		return false;
-	}
-	if (type->Proc.variadic) {
 		return false;
 	}
 	if (entity->min_dep_count.load(std::memory_order_relaxed) == 0) {
@@ -1301,10 +1614,6 @@ gb_internal void cb_emit_all_type_defs(cbGen *g, Checker *checker) {
 			continue;
 		}
 		if (e->min_dep_count.load(std::memory_order_relaxed) == 0) {
-			continue;
-		}
-		Type *type = base_type(e->type);
-		if (type != nullptr && type->kind == Type_Proc && type->Proc.variadic) {
 			continue;
 		}
 		if (cb_should_skip_compiler_proc(e)) {

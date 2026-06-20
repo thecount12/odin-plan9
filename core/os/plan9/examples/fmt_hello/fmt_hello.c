@@ -8,14 +8,52 @@ struct odin_string {
 	long len;
 };
 
+typedef struct odin_any odin_any;
+struct odin_any {
+	void *data;
+	unsigned long long id;
+};
+
+typedef struct odin_t_4684728336 odin_t_4684728336;
+struct odin_t_4684728336 {
+	odin_any *data;
+	long len;
+	long cap;
+};
+
 static void odin_user_main(void);
 int _write_string(odin_string s);
-int println(odin_string s);
+int _print_any(odin_any v);
+int println(odin_t_4684728336 args);
 
 static void
 odin_user_main(void)
 {
-	println(((odin_string){(unsigned char*)"hello from odin plan9 fmt", 25}));
+	{
+		odin_string _cb_v_0;
+		odin_any _cb_ar_1[1];
+		odin_t_4684728336 _cb_sl_2;
+		_cb_v_0 = ((odin_string){(unsigned char*)"hello from odin plan9 fmt", 25});
+		_cb_ar_1[0] = ((odin_any){(void *)&_cb_v_0, 3035420298402177265});
+		_cb_sl_2.data = _cb_ar_1;
+		_cb_sl_2.len = 1;
+		_cb_sl_2.cap = 1;
+		println(_cb_sl_2);
+	}
+	{
+		odin_string _cb_v_3;
+		odin_string _cb_v_4;
+		odin_any _cb_ar_5[2];
+		odin_t_4684728336 _cb_sl_6;
+		_cb_v_3 = ((odin_string){(unsigned char*)"hello", 5});
+		_cb_ar_5[0] = ((odin_any){(void *)&_cb_v_3, 3035420298402177265});
+		_cb_v_4 = ((odin_string){(unsigned char*)"world", 5});
+		_cb_ar_5[1] = ((odin_any){(void *)&_cb_v_4, 3035420298402177265});
+		_cb_sl_6.data = _cb_ar_5;
+		_cb_sl_6.len = 2;
+		_cb_sl_6.cap = 2;
+		println(_cb_sl_6);
+	}
 	return;
 }
 
@@ -29,10 +67,26 @@ _write_string(odin_string s)
 }
 
 int
-println(odin_string s)
+_print_any(odin_any v)
+{
+	if ((v.id == 3035420298402177265)) {
+		return _write_string((*(odin_string*)v.data));
+	}
+	return 0;
+}
+
+int
+println(odin_t_4684728336 args)
 {
 	int n;
-	n = _write_string(s);
+	int i;
+	n = 0;
+	for (i = 0; args.len > i; i += 1) {
+		if ((i > 0)) {
+			n += _write_string(((odin_string){(unsigned char*)" ", 1}));
+		}
+		n += _print_any(args.data[i]);
+	}
 	n += _write_string(((odin_string){(unsigned char*)"\n", 1}));
 	return n;
 }
