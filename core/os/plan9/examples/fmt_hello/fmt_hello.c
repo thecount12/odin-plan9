@@ -14,9 +14,16 @@ struct odin_any {
 	unsigned long long id;
 };
 
-typedef struct odin_t_4677545568 odin_t_4677545568;
-struct odin_t_4677545568 {
+typedef struct odin_t_4753729200 odin_t_4753729200;
+struct odin_t_4753729200 {
 	odin_any *data;
+	long len;
+	long cap;
+};
+
+typedef struct odin_t_4752284320 odin_t_4752284320;
+struct odin_t_4752284320 {
+	unsigned char *data;
 	long len;
 	long cap;
 };
@@ -26,7 +33,7 @@ int _write_string(odin_string s);
 int _int_to_buf(int n, unsigned char *buf);
 int _write_int(int n);
 int _print_any(odin_any v);
-int println(odin_t_4677545568 args);
+int println(odin_t_4753729200 args);
 
 static void
 odin_user_main(void)
@@ -34,7 +41,7 @@ odin_user_main(void)
 	{
 		odin_string _cb_v_0;
 		odin_any _cb_ar_1[1];
-		odin_t_4677545568 _cb_sl_2;
+		odin_t_4753729200 _cb_sl_2;
 		_cb_v_0 = ((odin_string){(unsigned char*)"hello from odin plan9 fmt", 25});
 		_cb_ar_1[0] = ((odin_any){(void *)&_cb_v_0, 3035420298402177265});
 		_cb_sl_2.data = _cb_ar_1;
@@ -46,7 +53,7 @@ odin_user_main(void)
 		odin_string _cb_v_3;
 		odin_string _cb_v_4;
 		odin_any _cb_ar_5[2];
-		odin_t_4677545568 _cb_sl_6;
+		odin_t_4753729200 _cb_sl_6;
 		_cb_v_3 = ((odin_string){(unsigned char*)"hello", 5});
 		_cb_ar_5[0] = ((odin_any){(void *)&_cb_v_3, 3035420298402177265});
 		_cb_v_4 = ((odin_string){(unsigned char*)"world", 5});
@@ -60,7 +67,7 @@ odin_user_main(void)
 		odin_string _cb_v_7;
 		int _cb_v_8;
 		odin_any _cb_ar_9[2];
-		odin_t_4677545568 _cb_sl_10;
+		odin_t_4753729200 _cb_sl_10;
 		_cb_v_7 = ((odin_string){(unsigned char*)"answer", 6});
 		_cb_ar_9[0] = ((odin_any){(void *)&_cb_v_7, 3035420298402177265});
 		_cb_v_8 = 42;
@@ -104,7 +111,7 @@ _int_to_buf(int n, unsigned char *buf)
 	}
 	i = 31;
 	for (; (v > 0); ) {
-		tmp[i] = u8((48 + (v % 10)));
+		tmp[i] = (unsigned char)((48 + (v % 10)));
 		v /= 10;
 		i -= 1;
 	}
@@ -128,14 +135,7 @@ _write_int(int n)
 	unsigned char buf[32];
 	int count;
 	count = _int_to_buf(n, &buf);
-	return sys_write(1, (unsigned char*)typedef struct odin_t_4720333856 odin_t_4720333856;
-struct odin_t_4720333856 {
-	unsigned char *data;
-	long len;
-	long cap;
-};
-
-((odin_t_4720333856){(unsigned char *)&buf[0], (count) - (0), (count) - (0)}).data, count);
+	return sys_write(1, (unsigned char*)(unsigned char *)&buf[0], count);
 }
 
 int
@@ -151,7 +151,7 @@ _print_any(odin_any v)
 }
 
 int
-println(odin_t_4677545568 args)
+println(odin_t_4753729200 args)
 {
 	int n;
 	int i;

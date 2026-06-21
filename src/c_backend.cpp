@@ -8,6 +8,7 @@ struct cbGen {
 	PtrSet<Entity *> foreign_procs;
 	PtrMap<Type *, String> emitted_type_names;
 	PtrSet<Type *> emitted_type_defs;
+	PtrSet<Type *> pending_type_defs;
 };
 
 #define CB_ODIN_USER_MAIN_NAME "odin_user_main"
@@ -294,6 +295,170 @@ gb_internal String cb_type_c_name(cbGen *g, Type *type) {
 
 	map_set(&g->emitted_type_names, type, name);
 	return name;
+}
+
+gb_internal void cb_note_type_for_decl(cbGen *g, Type *type) {
+	if (type == nullptr || g->failed) {
+		return;
+	}
+	type = base_type(type);
+	if (type == nullptr || ptr_set_exists(&g->emitted_type_defs, type)) {
+		return;
+	}
+	if (ptr_set_exists(&g->pending_type_defs, type)) {
+		return;
+	}
+	ptr_set_add(&g->pending_type_defs, type);
+}
+
+gb_internal void cb_emit_pending_type_defs(cbGen *g) {
+	Type *type = nullptr;
+	FOR_PTR_SET(type, g->pending_type_defs) {
+		cb_emit_type_def(g, type);
+		if (g->failed) {
+			return;
+		}
+	}
+}
+
+gb_internal void cb_collect_types_from_expr(cbGen *g, Ast *expr);
+gb_internal void cb_collect_types_from_stmt(cbGen *g, Ast *stmt);
+
+gb_internal void cb_collect_types_from_expr(cbGen *g, Ast *expr) {
+	if (expr == nullptr || g->failed) {
+		return;
+	}
+
+	expr = unparen_expr(expr);
+	if (expr->kind == Ast_SliceExpr) {
+		cb_note_type_for_decl(g, type_of_expr(expr));
+	}
+
+	switch (expr->kind) {
+	case Ast_SliceExpr:
+		cb_collect_types_from_expr(g, expr->SliceExpr.expr);
+		cb_collect_types_from_expr(g, expr->SliceExpr.low);
+		cb_collect_types_from_expr(g, expr->SliceExpr.high);
+		break;
+	case Ast_CompoundLit:
+		cb_note_type_for_decl(g, type_of_expr(expr));
+		for (Ast *elem : expr->CompoundLit.elems) {
+			cb_collect_types_from_expr(g, elem);
+		}
+		break;
+	case Ast_BinaryExpr:
+		cb_collect_types_from_expr(g, expr->BinaryExpr.left);
+		cb_collect_types_from_expr(g, expr->BinaryExpr.right);
+		break;
+	case Ast_UnaryExpr:
+		cb_collect_types_from_expr(g, expr->UnaryExpr.expr);
+		break;
+	case Ast_DerefExpr:
+		cb_collect_types_from_expr(g, expr->DerefExpr.expr);
+		break;
+	case Ast_CallExpr:
+		cb_collect_types_from_expr(g, expr->CallExpr.proc);
+		for (Ast *arg : expr->CallExpr.args) {
+			cb_collect_types_from_expr(g, arg);
+		}
+		break;
+	case Ast_IndexExpr:
+		cb_collect_types_from_expr(g, expr->IndexExpr.expr);
+		cb_collect_types_from_expr(g, expr->IndexExpr.index);
+		break;
+	case Ast_SelectorExpr:
+		cb_collect_types_from_expr(g, expr->SelectorExpr.expr);
+		break;
+	case Ast_TypeCast:
+		cb_collect_types_from_expr(g, expr->TypeCast.expr);
+		break;
+	default:
+		break;
+	}
+}
+
+gb_internal void cb_collect_types_from_stmt(cbGen *g, Ast *stmt) {
+	if (stmt == nullptr || g->failed) {
+		return;
+	}
+
+	switch (stmt->kind) {
+	case Ast_BlockStmt:
+		for (Ast *s : stmt->BlockStmt.stmts) {
+			cb_collect_types_from_stmt(g, s);
+		}
+		break;
+	case Ast_AssignStmt:
+		for (Ast *lhs : stmt->AssignStmt.lhs) {
+			cb_collect_types_from_expr(g, lhs);
+		}
+		for (Ast *rhs : stmt->AssignStmt.rhs) {
+			cb_collect_types_from_expr(g, rhs);
+		}
+		break;
+	case Ast_ExprStmt:
+		cb_collect_types_from_expr(g, stmt->ExprStmt.expr);
+		break;
+	case Ast_ReturnStmt:
+		for (Ast *r : stmt->ReturnStmt.results) {
+			cb_collect_types_from_expr(g, r);
+		}
+		break;
+	case Ast_IfStmt:
+		cb_collect_types_from_stmt(g, stmt->IfStmt.init);
+		cb_collect_types_from_expr(g, stmt->IfStmt.cond);
+		cb_collect_types_from_stmt(g, stmt->IfStmt.body);
+		cb_collect_types_from_stmt(g, stmt->IfStmt.else_stmt);
+		break;
+	case Ast_ForStmt:
+		cb_collect_types_from_stmt(g, stmt->ForStmt.init);
+		cb_collect_types_from_expr(g, stmt->ForStmt.cond);
+		cb_collect_types_from_stmt(g, stmt->ForStmt.post);
+		cb_collect_types_from_stmt(g, stmt->ForStmt.body);
+		break;
+	case Ast_RangeStmt:
+		cb_collect_types_from_stmt(g, stmt->RangeStmt.init);
+		cb_collect_types_from_expr(g, stmt->RangeStmt.expr);
+		cb_collect_types_from_stmt(g, stmt->RangeStmt.body);
+		break;
+	case Ast_SwitchStmt:
+		cb_collect_types_from_stmt(g, stmt->SwitchStmt.init);
+		cb_collect_types_from_expr(g, stmt->SwitchStmt.tag);
+		cb_collect_types_from_stmt(g, stmt->SwitchStmt.body);
+		break;
+	case Ast_ValueDecl:
+		for (Ast *v : stmt->ValueDecl.values) {
+			cb_collect_types_from_expr(g, v);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+gb_internal void cb_collect_types_from_checker(cbGen *g, Checker *checker) {
+	CheckerInfo *info = &checker->info;
+	for (isize i = 0; i < info->entities.count; i++) {
+		Entity *e = info->entities[i];
+		if (e->kind != Entity_Procedure || e->Procedure.is_foreign) {
+			continue;
+		}
+		if (!cb_is_emittable_package(e->pkg, info)) {
+			continue;
+		}
+		if (e->min_dep_count.load(std::memory_order_relaxed) == 0) {
+			continue;
+		}
+		if (cb_should_skip_compiler_proc(e)) {
+			continue;
+		}
+		DeclInfo *decl = decl_info_of_entity(e);
+		if (decl == nullptr || decl->proc_lit == nullptr) {
+			continue;
+		}
+		ast_node(pl, ProcLit, decl->proc_lit);
+		cb_collect_types_from_stmt(g, pl->body);
+	}
 }
 
 gb_internal void cb_emit_type_defs_for_type(cbGen *g, Type *type) {
@@ -761,6 +926,18 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 		proc = ce->entity_procedure_of;
 	}
 
+	if (ce->proc->tav.mode == Addressing_Type && ce->args.count == 1) {
+		gbString type_c = gb_string_make(temporary_allocator(), "");
+		Type *cast_type = ce->proc->tav.type;
+		if (!cb_type_to_c(g, cast_type, &type_c)) {
+			return;
+		}
+		gb_fprintf(g->f, "(%s)(", type_c);
+		cb_emit_expr(g, ce->args[0]);
+		gb_fprintf(g->f, ")");
+		return;
+	}
+
 	if (ce->proc->tav.mode == Addressing_Builtin) {
 		BuiltinProcId builtin_id = BuiltinProc_Invalid;
 		if (proc != nullptr) {
@@ -789,6 +966,45 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 				return;
 			}
 			{
+				Ast *arg = unparen_expr(ce->args[0]);
+				if (arg != nullptr && arg->kind == Ast_SliceExpr) {
+					ast_node(se, SliceExpr, arg);
+					Type *src_type = type_of_expr(se->expr);
+					Type *base = base_type(type_deref(src_type));
+					gbString elem_c = gb_string_make(temporary_allocator(), "");
+					Type *elem_type = base;
+					if (base != nullptr && base->kind == Type_Slice) {
+						elem_type = base_type(base->Slice.elem);
+					} else if (base != nullptr && base->kind == Type_Array) {
+						elem_type = base_type(base->Array.elem);
+					}
+					if (!cb_type_to_c(g, elem_type, &elem_c)) {
+						return;
+					}
+					if (base != nullptr && base->kind == Type_Array) {
+						gb_fprintf(g->f, "(%s *)&", elem_c);
+						cb_emit_expr(g, se->expr);
+						gb_fprintf(g->f, "[");
+						if (se->low != nullptr) {
+							cb_emit_expr(g, se->low);
+						} else {
+							gb_fprintf(g->f, "0");
+						}
+						gb_fprintf(g->f, "]");
+					} else if (base != nullptr && base->kind == Type_Slice) {
+						gb_fprintf(g->f, "(%s *)", elem_c);
+						cb_emit_expr(g, se->expr);
+						gb_fprintf(g->f, ".data");
+						if (se->low != nullptr) {
+							gb_fprintf(g->f, " + ");
+							cb_emit_expr(g, se->low);
+						}
+					} else {
+						CB_FAIL(g, "Plan 9 C backend: unsupported raw_data slice\n");
+					}
+					return;
+				}
+
 				Type *arg_type = type_of_expr(ce->args[0]);
 				Type *elem = base_type(type_deref(arg_type));
 				cb_emit_expr(g, ce->args[0]);
@@ -912,7 +1128,7 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 			Type *slice_type = type_of_expr(expr);
 			Type *src_type = type_of_expr(se->expr);
 			Type *base = base_type(type_deref(src_type));
-			cb_emit_type_defs_for_type(g, slice_type);
+			cb_note_type_for_decl(g, slice_type);
 			String slice_name = cb_type_c_name(g, slice_type);
 			gbString elem_c = gb_string_make(temporary_allocator(), "");
 			if (!cb_type_to_c(g, base_type(slice_type->Slice.elem), &elem_c)) {
@@ -1941,6 +2157,8 @@ gb_internal bool cb_emit_program(cbGen *g, Checker *checker) {
 
 	cb_emit_foreign_decls(g);
 	cb_emit_all_type_defs(g, checker);
+	cb_collect_types_from_checker(g, checker);
+	cb_emit_pending_type_defs(g);
 	cb_emit_runtime_glue(g, checker);
 	cb_emit_package_proc_fwd_decls(g, checker, true);
 	cb_emit_package_procs(g, checker, true);
@@ -2001,6 +2219,7 @@ gb_internal bool cb_generate_code(Checker *checker) {
 	ptr_set_init(&gen.foreign_procs);
 	map_init(&gen.emitted_type_names);
 	ptr_set_init(&gen.emitted_type_defs);
+	ptr_set_init(&gen.pending_type_defs);
 
 	bool ok = cb_emit_program(&gen, checker);
 	if (ok) {
