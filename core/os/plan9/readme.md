@@ -55,9 +55,21 @@ mk cgen
 | Static library | `libodin_plan9.a` |
 | Link driver | `link.rc` |
 | Build driver | `build.rc` |
-| C codegen | `cgen/cgen` |
+| C codegen | `src/c_backend.cpp` (`-backend:plan9-c`) + `build.rc` |
 
 See [docs/plan9-codegen.md](../../docs/plan9-codegen.md).
+
+## Compiler example: `fmt_hello`
+
+Verified on gabriel (arm64): variadic `import "core:fmt"` with strings and integers.
+
+```sh
+# 9front — from this directory
+./build.rc -o fmt_hello examples/fmt_hello/fmt_hello.c
+./fmt_hello
+```
+
+Regenerate C on Mac — see [plan9-codegen.md](../../docs/plan9-codegen.md).
 
 ## Status
 
@@ -66,4 +78,4 @@ See [docs/plan9-codegen.md](../../docs/plan9-codegen.md).
 | 7–8 | core I/O, path, dir, env | done |
 | 13 | mmap, sys_thread, net | done |
 | 14 | integration glue (`entry.c`, `link.rc`, `examples/hello`) | done |
-| 15 | `cgen` + `build.rc` | started |
+| 15 | `-backend:plan9-c`, `build.rc`, `fmt_hello` | **M8 verified** |

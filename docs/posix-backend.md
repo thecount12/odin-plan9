@@ -158,25 +158,38 @@ mk integration
 ./link.rc -o myprog generated.$O
 ```
 
-### Phase 15 — Plan 9 C codegen (started)
+### Phase 15 — Plan 9 C codegen (M8 verified)
 
-See [plan9-codegen.md](plan9-codegen.md).
+See [plan9-codegen.md](plan9-codegen.md) for the full milestone table, Mac→9front workflow, and next steps.
+
+| Milestone | Status |
+|-----------|--------|
+| M5–M5d | `hello`, `hello_adv` (foreign, structs, switch) |
+| M6–M8 | `fmt_hello`: `import "core:fmt"`, `..any`, integers — **verified on gabriel (arm64)** |
+| M9+ | Richer bootstrap fmt, runtime emission, `core:os` — planned |
 
 | Piece | Path |
 |-------|------|
-| Codegen tool | `core/os/plan9/cgen/` (`cgen hello` → C on stdout) |
+| C backend | `src/c_backend.cpp` (`-backend:plan9-c`) |
 | Build driver | `core/os/plan9/build.rc` |
+| Bootstrap fmt | `core/fmt/fmt_plan9.odin` |
+| Reference example | `core/os/plan9/examples/fmt_hello/` |
 | Generated header | `core/os/plan9/include/odin_generated.h` |
-| Odin spec | `core/os/plan9/examples/hello/hello.odin` |
 
 ```sh
+# Mac
+./build_odin.sh
+./odin build core/os/plan9/examples/fmt_hello/fmt_hello.odin \
+    -file -backend:plan9-c -target:plan9_arm64 \
+    -out:core/os/plan9/examples/fmt_hello/fmt_hello.c
+
+# 9front
 cd core/os/plan9
-mk cgen
-./cgen/cgen hello > hello.c
-./build.rc -o hello hello.c
+./build.rc -o fmt_hello examples/fmt_hello/fmt_hello.c
+./fmt_hello
 ```
 
-LLVM `odin build -backend:plan9-c` is milestone M5.
+The bootstrap `cgen/` tool remains for early experiments; the compiler backend is the supported path.
 
 ### Phase 13 — Plan 9 advanced modules (complete)
 
