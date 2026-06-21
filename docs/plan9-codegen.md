@@ -38,6 +38,7 @@ Runtime glue (done, Phase 14):
 | M5 | Odin compiler `-backend:plan9-c` | 5a–5d hello_adv |
 | M6 | `import "core:fmt"` string `println` (`fmt_plan9.odin`) | done (`fmt_hello`) |
 | M7 | `..any` variadic calls, range-for, multi-arg `println` | done |
+| M8 | `fmt` integer printing; `bit_set`/union/map types for runtime | done (partial) |
 
 ## On 9front
 

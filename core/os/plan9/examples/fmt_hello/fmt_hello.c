@@ -8,14 +8,19 @@ struct odin_string {
 	long len;
 };
 
+typedef struct odin_t_4686187008 odin_t_4686187008;
+struct odin_t_4686187008 {
+	odin_t_4305390392 data[32];
+};
+
 typedef struct odin_any odin_any;
 struct odin_any {
 	void *data;
 	unsigned long long id;
 };
 
-typedef struct odin_t_4684728336 odin_t_4684728336;
-struct odin_t_4684728336 {
+typedef struct odin_t_4686200144 odin_t_4686200144;
+struct odin_t_4686200144 {
 	odin_any *data;
 	long len;
 	long cap;
@@ -23,8 +28,10 @@ struct odin_t_4684728336 {
 
 static void odin_user_main(void);
 int _write_string(odin_string s);
+int _int_to_buf(int n, odin_t_4686187008* buf);
+int _write_int(int n);
 int _print_any(odin_any v);
-int println(odin_t_4684728336 args);
+int println(odin_t_4686200144 args);
 
 static void
 odin_user_main(void)
@@ -32,7 +39,7 @@ odin_user_main(void)
 	{
 		odin_string _cb_v_0;
 		odin_any _cb_ar_1[1];
-		odin_t_4684728336 _cb_sl_2;
+		odin_t_4686200144 _cb_sl_2;
 		_cb_v_0 = ((odin_string){(unsigned char*)"hello from odin plan9 fmt", 25});
 		_cb_ar_1[0] = ((odin_any){(void *)&_cb_v_0, 3035420298402177265});
 		_cb_sl_2.data = _cb_ar_1;
@@ -44,7 +51,7 @@ odin_user_main(void)
 		odin_string _cb_v_3;
 		odin_string _cb_v_4;
 		odin_any _cb_ar_5[2];
-		odin_t_4684728336 _cb_sl_6;
+		odin_t_4686200144 _cb_sl_6;
 		_cb_v_3 = ((odin_string){(unsigned char*)"hello", 5});
 		_cb_ar_5[0] = ((odin_any){(void *)&_cb_v_3, 3035420298402177265});
 		_cb_v_4 = ((odin_string){(unsigned char*)"world", 5});
@@ -53,6 +60,20 @@ odin_user_main(void)
 		_cb_sl_6.len = 2;
 		_cb_sl_6.cap = 2;
 		println(_cb_sl_6);
+	}
+	{
+		odin_string _cb_v_7;
+		int _cb_v_8;
+		odin_any _cb_ar_9[2];
+		odin_t_4686200144 _cb_sl_10;
+		_cb_v_7 = ((odin_string){(unsigned char*)"answer", 6});
+		_cb_ar_9[0] = ((odin_any){(void *)&_cb_v_7, 3035420298402177265});
+		_cb_v_8 = 42;
+		_cb_ar_9[1] = ((odin_any){(void *)&_cb_v_8, 10840543360389845366});
+		_cb_sl_10.data = _cb_ar_9;
+		_cb_sl_10.len = 2;
+		_cb_sl_10.cap = 2;
+		println(_cb_sl_10);
 	}
 	return;
 }
@@ -67,16 +88,85 @@ _write_string(odin_string s)
 }
 
 int
+_int_to_buf(int n, odin_t_4686187008* buf)
+{
+	typedef struct odin_t_4721426336 odin_t_4721426336;
+struct odin_t_4721426336 {
+	odin_t_4305390392 data[32];
+};
+
+odin_t_4721426336 tmp;
+	int negative;
+	int v;
+	int i;
+	int digit_start;
+	int digit_count;
+	int out;
+	int j;
+	if ((n == 0)) {
+		buf[0] = 48;
+		return 1;
+	}
+	negative = (n < 0);
+	v = n;
+	if (negative) {
+		v = -v;
+	}
+	i = 31;
+	for (; (v > 0); ) {
+		tmp.data[i] = u8((48 + (v % 10)));
+		v /= 10;
+		i -= 1;
+	}
+	digit_start = (i + 1);
+	digit_count = (32 - digit_start);
+	out = 0;
+	if (negative) {
+		buf[0] = 45;
+		out = 1;
+	}
+	for (j = 0; (j < digit_count); j += 1) {
+		buf[out] = tmp.data[(digit_start + j)];
+		out += 1;
+	}
+	return out;
+}
+
+int
+_write_int(int n)
+{
+	typedef struct odin_t_4721420192 odin_t_4721420192;
+struct odin_t_4721420192 {
+	odin_t_4305390392 data[32];
+};
+
+odin_t_4721420192 buf;
+	int count;
+	count = _int_to_buf(n, &buf);
+	return sys_write(1, (unsigned char*)typedef struct odin_t_4721422416 odin_t_4721422416;
+struct odin_t_4721422416 {
+	odin_t_4305390392 *data;
+	long len;
+	long cap;
+};
+
+((odin_t_4721422416){(odin_t_4305390392 *)&buf.data[0], (count) - (0), (count) - (0)}).data, count);
+}
+
+int
 _print_any(odin_any v)
 {
 	if ((v.id == 3035420298402177265)) {
 		return _write_string((*(odin_string*)v.data));
 	}
+	if ((v.id == 10840543360389845366)) {
+		return _write_int((*(int*)v.data));
+	}
 	return 0;
 }
 
 int
-println(odin_t_4684728336 args)
+println(odin_t_4686200144 args)
 {
 	int n;
 	int i;

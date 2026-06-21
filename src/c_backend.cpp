@@ -118,10 +118,34 @@ gb_internal bool cb_type_to_c(cbGen *g, Type *type, gbString *out) {
 		}
 		*out = gb_string_appendc(*out, "*");
 		break;
+	case Type_MultiPointer:
+		if (!cb_type_to_c(g, type->MultiPointer.elem, out)) {
+			return false;
+		}
+		*out = gb_string_appendc(*out, "*");
+		break;
 	case Type_Struct:
 	case Type_Enum:
 	case Type_Slice:
 	case Type_Array:
+		cb_emit_type_defs_for_type(g, type);
+		{
+			String name = cb_type_c_name(g, type);
+			*out = gb_string_append_length(*out, name.text, name.len);
+		}
+		break;
+	case Type_BitSet:
+		{
+			Type *backing = bit_set_to_int(type);
+			if (!cb_type_to_c(g, backing, out)) {
+				return false;
+			}
+		}
+		break;
+	case Type_Union:
+	case Type_Map:
+	case Type_DynamicArray:
+	case Type_SimdVector:
 		cb_emit_type_defs_for_type(g, type);
 		{
 			String name = cb_type_c_name(g, type);
@@ -285,6 +309,11 @@ gb_internal void cb_emit_type_defs_for_type(cbGen *g, Type *type) {
 	case Type_Struct:
 	case Type_Enum:
 	case Type_Array:
+	case Type_Union:
+	case Type_Map:
+	case Type_DynamicArray:
+	case Type_SimdVector:
+	case Type_BitSet:
 		cb_emit_type_def(g, type);
 		break;
 	default:
@@ -318,9 +347,90 @@ gb_internal void cb_emit_type_def(cbGen *g, Type *type) {
 			if (base != nullptr) {
 				map_set(&g->emitted_type_names, base, name);
 			}
+			if (base != nullptr && base->kind == Type_BitSet) {
+				gbString backing_c = gb_string_make(temporary_allocator(), "");
+				if (!cb_type_to_c(g, bit_set_to_int(base), &backing_c)) {
+					return;
+				}
+				gb_fprintf(g->f, "typedef %s %.*s;\n\n", backing_c, LIT(name));
+				return;
+			}
 			cb_emit_type_def(g, base);
 		}
 		return;
+
+	case Type_BitSet:
+		{
+			gbString backing_c = gb_string_make(temporary_allocator(), "");
+			if (!cb_type_to_c(g, bit_set_to_int(type), &backing_c)) {
+				return;
+			}
+			String name = cb_type_c_name(g, type);
+			gb_fprintf(g->f, "typedef %s %.*s;\n\n", backing_c, LIT(name));
+		}
+		break;
+
+	case Type_Union:
+		{
+			type_set_offsets(type);
+			String name = cb_type_c_name(g, type);
+			i64 block_size = type->Union.variant_block_size;
+			i64 tag_size = union_tag_size(type);
+			gb_fprintf(g->f, "typedef struct %.*s %.*s;\n", LIT(name), LIT(name));
+			gb_fprintf(g->f, "struct %.*s {\n", LIT(name));
+			gb_fprintf(g->f, "\tunsigned char _variants[%lld];\n", cast(long long)block_size);
+			if (tag_size > 0) {
+				gbString tag_c = gb_string_make(temporary_allocator(), "");
+				if (!cb_type_to_c(g, union_tag_type(type), &tag_c)) {
+					return;
+				}
+				gb_fprintf(g->f, "\t%s tag;\n", tag_c);
+			}
+			gb_fprintf(g->f, "};\n\n");
+		}
+		break;
+
+	case Type_DynamicArray:
+		{
+			Type *elem = type->DynamicArray.elem;
+			cb_emit_type_defs_for_type(g, elem);
+			String name = cb_type_c_name(g, type);
+			String elem_name = cb_type_c_name(g, elem);
+			gb_fprintf(g->f, "typedef struct %.*s %.*s;\n", LIT(name), LIT(name));
+			gb_fprintf(g->f, "struct %.*s {\n", LIT(name));
+			gb_fprintf(g->f, "\t%.*s *data;\n", LIT(elem_name));
+			gb_fprintf(g->f, "\tlong len;\n");
+			gb_fprintf(g->f, "\tlong cap;\n");
+			gb_fprintf(g->f, "\tunsigned long long allocator;\n");
+			gb_fprintf(g->f, "};\n\n");
+		}
+		break;
+
+	case Type_Map:
+		{
+			String name = cb_type_c_name(g, type);
+			gb_fprintf(g->f, "typedef struct %.*s %.*s;\n", LIT(name), LIT(name));
+			gb_fprintf(g->f, "struct %.*s {\n", LIT(name));
+			gb_fprintf(g->f, "\tvoid *data;\n");
+			gb_fprintf(g->f, "\tlong len;\n");
+			gb_fprintf(g->f, "\tlong cap;\n");
+			gb_fprintf(g->f, "\tunsigned long long allocator;\n");
+			gb_fprintf(g->f, "};\n\n");
+		}
+		break;
+
+	case Type_SimdVector:
+		{
+			Type *elem = type->SimdVector.elem;
+			cb_emit_type_defs_for_type(g, elem);
+			String name = cb_type_c_name(g, type);
+			String elem_name = cb_type_c_name(g, elem);
+			gb_fprintf(g->f, "typedef struct %.*s %.*s;\n", LIT(name), LIT(name));
+			gb_fprintf(g->f, "struct %.*s {\n", LIT(name));
+			gb_fprintf(g->f, "\t%.*s data[%lld];\n", LIT(elem_name), cast(long long)type->SimdVector.count);
+			gb_fprintf(g->f, "};\n\n");
+		}
+		break;
 
 	case Type_Enum:
 		{
@@ -654,8 +764,18 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 				CB_FAIL(g, "Plan 9 C backend: invalid raw_data call\n");
 				return;
 			}
-			cb_emit_expr(g, ce->args[0]);
-			gb_fprintf(g->f, ".data");
+			{
+				Type *arg_type = type_of_expr(ce->args[0]);
+				Type *elem = base_type(type_deref(arg_type));
+				cb_emit_expr(g, ce->args[0]);
+				if (is_type_pointer(arg_type) && elem != nullptr && elem->kind == Type_Array) {
+					/* pointer to array — already a pointer in C */
+				} else if (elem != nullptr && (elem->kind == Type_Slice || elem->kind == Type_Array)) {
+					gb_fprintf(g->f, ".data");
+				} else {
+					gb_fprintf(g->f, ".data");
+				}
+			}
 			return;
 		case BuiltinProc_typeid_of:
 			if (ce->args.count != 1) {
@@ -761,6 +881,89 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 		gb_fprintf(g->f, ")");
 	case_end;
 
+	case_ast_node(se, SliceExpr, expr);
+		{
+			Type *slice_type = type_of_expr(expr);
+			Type *src_type = type_of_expr(se->expr);
+			Type *base = base_type(type_deref(src_type));
+			cb_emit_type_defs_for_type(g, slice_type);
+			String slice_name = cb_type_c_name(g, slice_type);
+			String elem_name = cb_type_c_name(g, base_type(slice_type->Slice.elem));
+
+			gb_fprintf(g->f, "((%.*s){", LIT(slice_name));
+			if (is_type_pointer(src_type) && base != nullptr && base->kind == Type_Array) {
+				gb_fprintf(g->f, "(%.*s *)", LIT(elem_name));
+				cb_emit_expr(g, se->expr);
+				if (se->low != nullptr) {
+					gb_fprintf(g->f, " + ");
+					cb_emit_expr(g, se->low);
+				}
+			} else if (base != nullptr && base->kind == Type_Array) {
+				gb_fprintf(g->f, "(%.*s *)&", LIT(elem_name));
+				cb_emit_expr(g, se->expr);
+				gb_fprintf(g->f, ".data[");
+				if (se->low != nullptr) {
+					cb_emit_expr(g, se->low);
+				} else {
+					gb_fprintf(g->f, "0");
+				}
+				gb_fprintf(g->f, "]");
+			} else if (base != nullptr && base->kind == Type_Slice) {
+				gb_fprintf(g->f, "(%.*s *)", LIT(elem_name));
+				cb_emit_expr(g, se->expr);
+				gb_fprintf(g->f, ".data");
+				if (se->low != nullptr) {
+					gb_fprintf(g->f, " + ");
+					cb_emit_expr(g, se->low);
+				}
+			} else {
+				CB_FAIL(g, "Plan 9 C backend: unsupported slice expression\n");
+				return;
+			}
+
+			gb_fprintf(g->f, ", ");
+			if (se->low != nullptr && se->high != nullptr) {
+				gb_fprintf(g->f, "(");
+				cb_emit_expr(g, se->high);
+				gb_fprintf(g->f, ") - (");
+				cb_emit_expr(g, se->low);
+				gb_fprintf(g->f, ")");
+			} else if (se->low != nullptr && base != nullptr && base->kind == Type_Array) {
+				gb_fprintf(g->f, "%lld - (", cast(long long)base->Array.count);
+				cb_emit_expr(g, se->low);
+				gb_fprintf(g->f, ")");
+			} else if (se->high != nullptr) {
+				cb_emit_expr(g, se->high);
+			} else if (base != nullptr && base->kind == Type_Array) {
+				gb_fprintf(g->f, "%lld", cast(long long)base->Array.count);
+			} else {
+				cb_emit_expr(g, se->expr);
+				gb_fprintf(g->f, ".len");
+			}
+
+			gb_fprintf(g->f, ", ");
+			if (se->low != nullptr && se->high != nullptr) {
+				gb_fprintf(g->f, "(");
+				cb_emit_expr(g, se->high);
+				gb_fprintf(g->f, ") - (");
+				cb_emit_expr(g, se->low);
+				gb_fprintf(g->f, ")");
+			} else if (se->low != nullptr && base != nullptr && base->kind == Type_Array) {
+				gb_fprintf(g->f, "%lld - (", cast(long long)base->Array.count);
+				cb_emit_expr(g, se->low);
+				gb_fprintf(g->f, ")");
+			} else if (se->high != nullptr) {
+				cb_emit_expr(g, se->high);
+			} else if (base != nullptr && base->kind == Type_Array) {
+				gb_fprintf(g->f, "%lld", cast(long long)base->Array.count);
+			} else {
+				cb_emit_expr(g, se->expr);
+				gb_fprintf(g->f, ".len");
+			}
+			gb_fprintf(g->f, "})");
+		}
+	case_end;
+
 	case_ast_node(ue, UnaryExpr, expr);
 		switch (ue->op.kind) {
 		case Token_Sub:
@@ -794,9 +997,13 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 
 	case_ast_node(ie, IndexExpr, expr);
 		{
-			Type *base = base_type(type_deref(type_of_expr(ie->expr)));
+			Type *expr_type = type_of_expr(ie->expr);
+			Type *deref = type_deref(expr_type);
+			Type *base = base_type(deref);
 			cb_emit_expr(g, ie->expr);
-			if (base != nullptr && base->kind == Type_Slice) {
+			if (is_type_pointer(expr_type) && base != nullptr && base->kind == Type_Array) {
+				gb_fprintf(g->f, "[");
+			} else if (base != nullptr && (base->kind == Type_Slice || base->kind == Type_Array)) {
 				gb_fprintf(g->f, ".data[");
 			} else {
 				gb_fprintf(g->f, "[");
