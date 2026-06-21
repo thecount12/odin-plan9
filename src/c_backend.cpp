@@ -127,11 +127,15 @@ gb_internal bool cb_type_to_c(cbGen *g, Type *type, gbString *out) {
 	case Type_Struct:
 	case Type_Enum:
 	case Type_Slice:
-	case Type_Array:
 		cb_emit_type_defs_for_type(g, type);
 		{
 			String name = cb_type_c_name(g, type);
 			*out = gb_string_append_length(*out, name.text, name.len);
+		}
+		break;
+	case Type_Array:
+		if (!cb_type_to_c(g, type->Array.elem, out)) {
+			return false;
 		}
 		break;
 	case Type_BitSet:
@@ -160,11 +164,35 @@ gb_internal bool cb_type_to_c(cbGen *g, Type *type, gbString *out) {
 }
 
 gb_internal void cb_emit_c_var(cbGen *g, Type *type, String name) {
-	gbString type_c = gb_string_make(temporary_allocator(), "");
-	if (!cb_type_to_c(g, type, &type_c)) {
+	Type *orig = type;
+	type = base_type(type);
+
+	if (orig != nullptr && orig->kind == Type_Pointer) {
+		Type *elem = base_type(orig->Pointer.elem);
+		if (elem != nullptr && elem->kind == Type_Array) {
+			gbString elem_c = gb_string_make(temporary_allocator(), "");
+			if (!cb_type_to_c(g, elem->Array.elem, &elem_c)) {
+				return;
+			}
+			gb_fprintf(g->f, "%s *%.*s", elem_c, LIT(name));
+			return;
+		}
+	}
+
+	if (type != nullptr && type->kind == Type_Array) {
+		gbString elem_c = gb_string_make(temporary_allocator(), "");
+		if (!cb_type_to_c(g, type->Array.elem, &elem_c)) {
+			return;
+		}
+		gb_fprintf(g->f, "%s %.*s[%lld]", elem_c, LIT(name), cast(long long)type->Array.count);
 		return;
 	}
-	if (is_type_cstring(type)) {
+
+	gbString type_c = gb_string_make(temporary_allocator(), "");
+	if (!cb_type_to_c(g, orig, &type_c)) {
+		return;
+	}
+	if (is_type_cstring(orig)) {
 		gb_fprintf(g->f, "%s *%.*s", type_c, LIT(name));
 	} else {
 		gb_fprintf(g->f, "%s %.*s", type_c, LIT(name));
@@ -308,13 +336,15 @@ gb_internal void cb_emit_type_defs_for_type(cbGen *g, Type *type) {
 		break;
 	case Type_Struct:
 	case Type_Enum:
-	case Type_Array:
 	case Type_Union:
 	case Type_Map:
 	case Type_DynamicArray:
 	case Type_SimdVector:
 	case Type_BitSet:
 		cb_emit_type_def(g, type);
+		break;
+	case Type_Array:
+		ptr_set_update(&g->emitted_type_defs, type);
 		break;
 	default:
 		break;
@@ -440,16 +470,7 @@ gb_internal void cb_emit_type_def(cbGen *g, Type *type) {
 		break;
 
 	case Type_Array:
-		{
-			Type *elem = type->Array.elem;
-			cb_emit_type_defs_for_type(g, elem);
-			String name = cb_type_c_name(g, type);
-			String elem_name = cb_type_c_name(g, elem);
-			gb_fprintf(g->f, "typedef struct %.*s %.*s;\n", LIT(name), LIT(name));
-			gb_fprintf(g->f, "struct %.*s {\n", LIT(name));
-			gb_fprintf(g->f, "\t%.*s data[%lld];\n", LIT(elem_name), cast(long long)type->Array.count);
-			gb_fprintf(g->f, "};\n\n");
-		}
+		ptr_set_update(&g->emitted_type_defs, type);
 		break;
 
 	case Type_Slice:
@@ -457,10 +478,13 @@ gb_internal void cb_emit_type_def(cbGen *g, Type *type) {
 			Type *elem = type->Slice.elem;
 			cb_emit_type_defs_for_type(g, elem);
 			String name = cb_type_c_name(g, type);
-			String elem_name = cb_type_c_name(g, elem);
+			gbString elem_c = gb_string_make(temporary_allocator(), "");
+			if (!cb_type_to_c(g, elem, &elem_c)) {
+				return;
+			}
 			gb_fprintf(g->f, "typedef struct %.*s %.*s;\n", LIT(name), LIT(name));
 			gb_fprintf(g->f, "struct %.*s {\n", LIT(name));
-			gb_fprintf(g->f, "\t%.*s *data;\n", LIT(elem_name));
+			gb_fprintf(g->f, "\t%s *data;\n", elem_c);
 			gb_fprintf(g->f, "\tlong len;\n");
 			gb_fprintf(g->f, "\tlong cap;\n");
 			gb_fprintf(g->f, "};\n\n");
@@ -770,8 +794,10 @@ gb_internal void cb_emit_call_expr(cbGen *g, Ast *expr) {
 				cb_emit_expr(g, ce->args[0]);
 				if (is_type_pointer(arg_type) && elem != nullptr && elem->kind == Type_Array) {
 					/* pointer to array — already a pointer in C */
-				} else if (elem != nullptr && (elem->kind == Type_Slice || elem->kind == Type_Array)) {
+				} else if (elem != nullptr && elem->kind == Type_Slice) {
 					gb_fprintf(g->f, ".data");
+				} else if (elem != nullptr && elem->kind == Type_Array) {
+					/* native C array — decays to element pointer */
 				} else {
 					gb_fprintf(g->f, ".data");
 				}
@@ -888,20 +914,23 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 			Type *base = base_type(type_deref(src_type));
 			cb_emit_type_defs_for_type(g, slice_type);
 			String slice_name = cb_type_c_name(g, slice_type);
-			String elem_name = cb_type_c_name(g, base_type(slice_type->Slice.elem));
+			gbString elem_c = gb_string_make(temporary_allocator(), "");
+			if (!cb_type_to_c(g, base_type(slice_type->Slice.elem), &elem_c)) {
+				return;
+			}
 
 			gb_fprintf(g->f, "((%.*s){", LIT(slice_name));
 			if (is_type_pointer(src_type) && base != nullptr && base->kind == Type_Array) {
-				gb_fprintf(g->f, "(%.*s *)", LIT(elem_name));
+				gb_fprintf(g->f, "(%s *)", elem_c);
 				cb_emit_expr(g, se->expr);
 				if (se->low != nullptr) {
 					gb_fprintf(g->f, " + ");
 					cb_emit_expr(g, se->low);
 				}
 			} else if (base != nullptr && base->kind == Type_Array) {
-				gb_fprintf(g->f, "(%.*s *)&", LIT(elem_name));
+				gb_fprintf(g->f, "(%s *)&", elem_c);
 				cb_emit_expr(g, se->expr);
-				gb_fprintf(g->f, ".data[");
+				gb_fprintf(g->f, "[");
 				if (se->low != nullptr) {
 					cb_emit_expr(g, se->low);
 				} else {
@@ -909,7 +938,7 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 				}
 				gb_fprintf(g->f, "]");
 			} else if (base != nullptr && base->kind == Type_Slice) {
-				gb_fprintf(g->f, "(%.*s *)", LIT(elem_name));
+				gb_fprintf(g->f, "(%s *)", elem_c);
 				cb_emit_expr(g, se->expr);
 				gb_fprintf(g->f, ".data");
 				if (se->low != nullptr) {
@@ -1003,7 +1032,7 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 			cb_emit_expr(g, ie->expr);
 			if (is_type_pointer(expr_type) && base != nullptr && base->kind == Type_Array) {
 				gb_fprintf(g->f, "[");
-			} else if (base != nullptr && (base->kind == Type_Slice || base->kind == Type_Array)) {
+			} else if (base != nullptr && base->kind == Type_Slice) {
 				gb_fprintf(g->f, ".data[");
 			} else {
 				gb_fprintf(g->f, "[");
