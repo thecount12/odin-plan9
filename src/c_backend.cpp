@@ -1218,8 +1218,19 @@ gb_internal void cb_emit_expr(cbGen *g, Ast *expr) {
 			cb_emit_expr(g, ue->expr);
 			break;
 		case Token_And:
-			gb_fprintf(g->f, "&");
-			cb_emit_expr(g, ue->expr);
+			{
+				Type *result = default_type(type_of_expr(expr));
+				if (is_type_pointer(result)) {
+					Type *elem = base_type(type_deref(result));
+					if (elem != nullptr && elem->kind == Type_Array) {
+						/* Plan 9 C: &array is pointer-to-array; decay for elem* params. */
+						cb_emit_expr(g, ue->expr);
+						break;
+					}
+				}
+				gb_fprintf(g->f, "&");
+				cb_emit_expr(g, ue->expr);
+			}
 			break;
 		case Token_Mul:
 			gb_fprintf(g->f, "*");
